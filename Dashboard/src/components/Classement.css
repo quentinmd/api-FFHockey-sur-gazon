@@ -1,0 +1,106 @@
+.classement-container {
+  animation: slideIn 0.5s ease;
+}
+
+.classement-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 15px 20px;
+  border-radius: 8px;
+  color: white;
+}
+
+.classement-table-wrapper {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin-bottom: 30px;
+}
+
+.classement-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.classement-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.classement-table th {
+  padding: 15px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.classement-table th:first-child {
+  text-align: center;
+  width: 50px;
+}
+
+.classement-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+}
+
+.classement-table td:nth-child(2) {
+  text-align: left;
+}
+
+.position-1 {
+  background: #fff9e6;
+}
+
+.position-2 {
+  background: #f5f5f5;
+}
+
+.position-3 {
+  background: #ffe8d6;
+}
+
+.team-name {
+  font-weight: 500;
+  color: #333;
+}
+
+.points {
+  font-size: 1.1rem;
+  color: #667eea;
+}
+
+.difference.positive {
+  color: #27ae60;
+}
+
+.difference.negative {
+  color: #e74c3c;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.stat-card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #667eea;
+  margin-top: 10px;
+}
