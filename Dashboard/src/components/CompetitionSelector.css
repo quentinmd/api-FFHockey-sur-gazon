@@ -1,0 +1,99 @@
+.competition-selector {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 30px;
+}
+
+.competition-selector h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.selector-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.selector-option {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.selector-option:hover {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.selector-option input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: 2px solid #ddd;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.selector-option input[type="radio"]:hover {
+  border-color: #667eea;
+}
+
+.selector-option input[type="radio"]:checked {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.selector-option.selected {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.option-content {
+  margin-left: 12px;
+  flex: 1;
+}
+
+.option-label {
+  display: block;
+  font-weight: 600;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.option-description {
+  display: block;
+  color: #999;
+  font-size: 0.8rem;
+  margin-top: 3px;
+}
+
+@media (max-width: 768px) {
+  .competition-selector {
+    padding: 15px;
+  }
+
+  .selector-options {
+    grid-template-columns: 1fr;
+  }
+
+  .selector-option {
+    padding: 10px 12px;
+  }
+
+  .option-label {
+    font-size: 0.9rem;
+  }
+}
