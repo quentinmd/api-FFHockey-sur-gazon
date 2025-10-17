@@ -15,7 +15,10 @@ function App() {
     'carquefou-sd': 'Carquefou SD'
   };
 
-  const API_BASE = 'http://localhost:8000/api/v1';
+  const API_BASE = process.env.NODE_ENV === 'development'
+    ? 'http://localhost:8000/api/v1'
+    : 'https://api-ffhockey.onrender.com/api/v1';
+
 
   const [selectedCompetition, setSelectedCompetition] = useState('elite-hommes');
   const [classement, setClassement] = useState(null);
