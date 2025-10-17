@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: dashboard-ffhockey
+    env: node
+    rootDir: Dashboard
+    buildCommand: npm install && npm run build
+    startCommand: npx serve -s dist -l 3000
+    envVars:
+      - key: NODE_ENV
+        value: production
