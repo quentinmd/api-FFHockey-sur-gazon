@@ -179,6 +179,32 @@ def send_match_finished_email(subscribers, match_data, competition_name):
         return False
 
 
+def check_and_notify_finished_matches(matches_data, competition_prefix, competition_name):
+    """
+    Fonction générique pour vérifier les matchs terminés et envoyer des emails.
+    
+    Args:
+        matches_data: Liste des matchs
+        competition_prefix: Préfixe pour l'ID unique (ex: "elite-hommes")
+        competition_name: Nom de la compétition pour l'email
+    """
+    global notified_matches
+    
+    for match in matches_data:
+        if match.get("statut") == "FINISHED":
+            # Créer un identifiant unique pour le match
+            match_id = f"{competition_prefix}-{match.get('equipe_domicile')}-{match.get('equipe_exterieur')}-{match.get('date')}"
+            
+            # Si le match n'a pas encore été notifié
+            if match_id not in notified_matches:
+                # Envoyer les emails
+                send_match_finished_email(email_subscribers, match, competition_name)
+                
+                # Marquer comme notifié
+                notified_matches.add(match_id)
+                save_notified_matches(notified_matches)
+
+
 @app.get("/api/v1/elite-hommes/classement", tags=["Classement"])
 async def endpoint_classement():
     """
@@ -305,6 +331,7 @@ async def endpoint_matchs_femmes():
 async def endpoint_matchs_carquefou_sd():
     """
     Récupère la liste des matchs de Carquefou HC Seniors Dames (Elite).
+    Envoie aussi des emails pour les matchs nouvellement terminés.
     
     Returns:
         Liste des matchs avec leurs résultats et statuts.
@@ -319,6 +346,9 @@ async def endpoint_matchs_carquefou_sd():
             status_code=503,
             detail="La source de données de la FFH est actuellement indisponible."
         )
+    
+    # Vérifier et notifier les matchs terminés
+    check_and_notify_finished_matches(matches_data, "carquefou-sd", "Carquefou SD")
     
     return {
         "success": True,
