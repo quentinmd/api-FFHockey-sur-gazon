@@ -487,7 +487,7 @@ def get_matchs_interligues_u14_filles():
     Récupère les matchs des Interligues U14 Filles (Championnat de France des Régions).
     
     Returns:
-        Liste des matchs U14 Filles
+        Liste des matchs U14 Filles avec format standardisé
     """
     try:
         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
@@ -512,10 +512,22 @@ def get_matchs_interligues_u14_filles():
         data = response.json()
         
         if data.get("ResponseCode") == "200" and "Response" in data:
-            matches = data["Response"].get("RencontresArray", {})
-            return {"status": "success", "data": list(matches.values())}
+            matches_raw = data["Response"].get("RencontresArray", {})
+            # Transformer les données au format attendu par le Dashboard
+            matches_formatted = []
+            for match in matches_raw.values():
+                formatted_match = {
+                    "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
+                    "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
+                    "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
+                    "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
+                    "date": match.get("RencDateDerog", ""),
+                    "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
+                }
+                matches_formatted.append(formatted_match)
+            return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
         else:
-            return {"status": "error", "message": "Aucun match trouvé"}
+            return {"success": False, "data": [], "count": 0}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Filles: {str(e)}")
 
@@ -526,7 +538,7 @@ def get_matchs_interligues_u14_garcons():
     Récupère les matchs des Interligues U14 Garçons (Championnat de France des Régions).
     
     Returns:
-        Liste des matchs U14 Garçons
+        Liste des matchs U14 Garçons avec format standardisé
     """
     try:
         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
@@ -551,10 +563,22 @@ def get_matchs_interligues_u14_garcons():
         data = response.json()
         
         if data.get("ResponseCode") == "200" and "Response" in data:
-            matches = data["Response"].get("RencontresArray", {})
-            return {"status": "success", "data": list(matches.values())}
+            matches_raw = data["Response"].get("RencontresArray", {})
+            # Transformer les données au format attendu par le Dashboard
+            matches_formatted = []
+            for match in matches_raw.values():
+                formatted_match = {
+                    "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
+                    "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
+                    "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
+                    "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
+                    "date": match.get("RencDateDerog", ""),
+                    "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
+                }
+                matches_formatted.append(formatted_match)
+            return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
         else:
-            return {"status": "error", "message": "Aucun match trouvé"}
+            return {"success": False, "data": [], "count": 0}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons: {str(e)}")
 
