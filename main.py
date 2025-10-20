@@ -154,8 +154,9 @@ def send_match_finished_email(subscribers, match_data, competition_name):
         </html>
         """
         
-        # Créer la session SMTP Gmail
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        # Créer la session SMTP Gmail (port 587 avec TLS pour meilleure compatibilité)
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
         server.login(sender_email, sender_password)
         
         # Envoyer à chaque abonné
@@ -715,10 +716,11 @@ async def debug_email_test():
         return debug_info
     
     try:
-        # Test connexion SMTP
-        debug_info["test_result"] = "Connecting to Gmail SMTP..."
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-        debug_info["test_result"] = "Connected! Logging in..."
+        # Test connexion SMTP (port 587 avec TLS)
+        debug_info["test_result"] = "Connecting to Gmail SMTP (port 587)..."
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
+        server.starttls()
+        debug_info["test_result"] = "TLS enabled! Logging in..."
         server.login(gmail_email, gmail_password)
         debug_info["test_result"] = "Login successful! Sending test email..."
         
