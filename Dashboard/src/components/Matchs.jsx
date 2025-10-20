@@ -31,7 +31,15 @@ const Matchs = ({ data, competition }) => {
 
   const formatTime = (timeString) => {
     if (!timeString) return '';
-    return timeString.substring(0, 5);
+    try {
+      const parts = timeString.split(' ');
+      if (parts.length >= 2) {
+        return parts[1].substring(0, 5); // Retourne HH:MM
+      }
+    } catch {
+      return '';
+    }
+    return '';
   };
 
   const filteredMatches = filterStatus === 'ALL'
