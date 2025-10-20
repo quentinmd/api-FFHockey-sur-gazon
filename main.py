@@ -687,6 +687,73 @@ async def notification_stats():
     }
 
 
+@app.get("/api/v1/debug/email-test", tags=["Debug"])
+async def debug_email_test():
+    """
+    Endpoint de test pour déboguer les emails.
+    Envoie un email de test et affiche tous les logs.
+    """
+    import smtplib
+    from datetime import datetime
+    
+    gmail_email = os.environ.get("GMAIL_EMAIL")
+    gmail_password = os.environ.get("GMAIL_PASSWORD")
+    
+    debug_info = {
+        "timestamp": str(datetime.now()),
+        "email_configured": bool(gmail_email),
+        "password_configured": bool(gmail_password),
+        "email_value": gmail_email if gmail_email else "NOT SET",
+        "password_length": len(gmail_password) if gmail_password else 0,
+        "subscribers": list(email_subscribers),
+        "test_result": None,
+        "error": None
+    }
+    
+    if not gmail_email or not gmail_password:
+        debug_info["error"] = "Gmail credentials not configured on Render!"
+        return debug_info
+    
+    try:
+        # Test connexion SMTP
+        debug_info["test_result"] = "Connecting to Gmail SMTP..."
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
+        debug_info["test_result"] = "Connected! Logging in..."
+        server.login(gmail_email, gmail_password)
+        debug_info["test_result"] = "Login successful! Sending test email..."
+        
+        # Envoyer email de test
+        message = MIMEMultipart("alternative")
+        message["Subject"] = "✅ Test d'Email - Hockey API"
+        message["From"] = gmail_email
+        message["To"] = email_subscribers.pop() if email_subscribers else "admin@test.com"
+        
+        html = f"""
+        <html><body style="font-family: Arial; background: #667eea; padding: 20px;">
+        <div style="background: white; padding: 20px; border-radius: 10px;">
+        <h2>✅ Test d'Email - Hockey API</h2>
+        <p>Cet email de test prouve que le système fonctionne!</p>
+        <p><strong>Heure:</strong> {datetime.now()}</p>
+        <p><strong>Email:</strong> {gmail_email}</p>
+        </div></body></html>
+        """
+        
+        message.attach(MIMEText(html, "html"))
+        server.sendmail(gmail_email, message["To"], message.as_string())
+        server.quit()
+        
+        debug_info["test_result"] = f"✅ Email envoyé avec succès à {message['To']}!"
+        
+    except smtplib.SMTPAuthenticationError as e:
+        debug_info["error"] = f"SMTP Auth Error: {str(e)}"
+    except smtplib.SMTPException as e:
+        debug_info["error"] = f"SMTP Error: {str(e)}"
+    except Exception as e:
+        debug_info["error"] = f"Unexpected error: {str(e)}"
+    
+    return debug_info
+
+
 if __name__ == "__main__":
     import uvicorn
     # Lancer le serveur sur http://127.0.0.1:8000
