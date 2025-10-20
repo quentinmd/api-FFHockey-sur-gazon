@@ -12,7 +12,9 @@ function App() {
     'elite-femmes': 'Elite Femmes',
     'carquefou-1sh': 'Carquefou 1SH',
     'carquefou-2sh': 'Carquefou 2SH',
-    'carquefou-sd': 'Carquefou SD'
+    'carquefou-sd': 'Carquefou SD',
+    'interligues-u14-garcons': 'Interligues U14 Garçons',
+    'interligues-u14-filles': 'Interligues U14 Filles'
   };
 
   // API Render (en production sur Render)
@@ -54,11 +56,15 @@ function App() {
         promises.push(axios.get(`${API_BASE}/carquefou/2sh/matchs`));
       } else if (competitionId === 'carquefou-sd') {
         promises.push(axios.get(`${API_BASE}/carquefou/sd/matchs`));
+      } else if (competitionId === 'interligues-u14-garcons') {
+        promises.push(axios.get(`${API_BASE}/interligues-u14-garcons/matchs`));
+      } else if (competitionId === 'interligues-u14-filles') {
+        promises.push(axios.get(`${API_BASE}/interligues-u14-filles/matchs`));
       }
 
       const results = await Promise.all(promises);
 
-      if (competitionId === 'carquefou-sd') {
+      if (competitionId === 'carquefou-sd' || competitionId === 'interligues-u14-garcons' || competitionId === 'interligues-u14-filles') {
         setMatchs(results[0].data.data);
       } else {
         setClassement(results[0].data.data);
@@ -100,7 +106,7 @@ function App() {
         ) : (
           <div>
             <div className="tabs">
-              {selectedCompetition !== 'carquefou-sd' && (
+              {selectedCompetition !== 'carquefou-sd' && selectedCompetition !== 'interligues-u14-garcons' && selectedCompetition !== 'interligues-u14-filles' && (
                 <button
                   className={`tab-button ${activeTab === 'classement' ? 'active' : ''}`}
                   onClick={() => setActiveTab('classement')}
