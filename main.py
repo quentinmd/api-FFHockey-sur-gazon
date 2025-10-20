@@ -101,7 +101,7 @@ def send_match_finished_email(subscribers, match_data, competition_name):
     try:
         # Récupérer la clé API SendGrid
         sg = SendGridAPIClient(os.environ.get("SENDGRID_API_KEY"))
-        sender_email = "notification@hockeyffh.fr"  # Doit être un email vérifié dans SendGrid
+        sender_email = "q.mouraud@gmail.com"  # Email expéditeur (doit être vérifié dans SendGrid)
         
         # Préparer le contenu de l'email
         equipe_domicile = match_data.get("equipe_domicile", "?")
@@ -707,7 +707,7 @@ async def debug_email_test():
     
     try:
         sg = SendGridAPIClient(sendgrid_api_key)
-        sender_email = "notification@hockeyffh.fr"
+        sender_email = "q.mouraud@gmail.com"  # Email expéditeur vérifié dans SendGrid
         recipient = list(email_subscribers)[0] if email_subscribers else "test@example.com"
         
         debug_info["test_result"] = f"Creating SendGrid message..."
