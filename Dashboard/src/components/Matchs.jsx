@@ -93,9 +93,9 @@ const Matchs = ({ data, competition }) => {
 
             return (
               <div key={index} className={`match-card match-${status.toLowerCase()}`}>
+                {time && <span className="match-time-badge">{time}</span>}
                 <div className="match-date">
                   <span className="date">{date}</span>
-                  {time && <span className="time">{time}</span>}
                 </div>
 
                 <div className="match-teams">

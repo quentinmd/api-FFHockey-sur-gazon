@@ -52,6 +52,7 @@
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
+  position: relative;
 }
 
 .match-card:hover {
@@ -86,10 +87,17 @@
   font-size: 0.95rem;
 }
 
-.match-date .time {
-  color: #667eea;
-  font-weight: 500;
-  font-size: 0.85rem;
+.match-time-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
 }
 
 .match-teams {
