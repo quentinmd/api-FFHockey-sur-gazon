@@ -7,12 +7,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import smtplib
 import json
 import os
 from dotenv import load_dotenv
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 from scraper import (
     get_ranking, get_matches, 
     get_ranking_femmes, get_matches_femmes,
@@ -89,20 +88,20 @@ notified_matches = load_notified_matches()
 
 def send_match_finished_email(subscribers, match_data, competition_name):
     """
-    Envoie un email à tous les abonnés quand un match se termine.
+    Envoie un email à tous les abonnés quand un match se termine via SendGrid.
     
     Args:
         subscribers: Set d'emails à notifier
         match_data: Dictionnaire avec les infos du match
         competition_name: Nom de la compétition
     """
-    if not subscribers or not os.environ.get("GMAIL_EMAIL") or not os.environ.get("GMAIL_PASSWORD"):
+    if not subscribers or not os.environ.get("SENDGRID_API_KEY"):
         return False
     
     try:
-        # Récupérer les variables d'environnement
-        sender_email = os.environ.get("GMAIL_EMAIL")
-        sender_password = os.environ.get("GMAIL_PASSWORD")
+        # Récupérer la clé API SendGrid
+        sg = SendGridAPIClient(os.environ.get("SENDGRID_API_KEY"))
+        sender_email = "notification@hockeyffh.fr"  # Doit être un email vérifié dans SendGrid
         
         # Préparer le contenu de l'email
         equipe_domicile = match_data.get("equipe_domicile", "?")
@@ -154,29 +153,24 @@ def send_match_finished_email(subscribers, match_data, competition_name):
         </html>
         """
         
-        # Créer la session SMTP Gmail (port 587 avec TLS pour meilleure compatibilité)
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        
-        # Envoyer à chaque abonné
+        # Envoyer à chaque abonné via SendGrid
         for recipient_email in subscribers:
-            message = MIMEMultipart("alternative")
-            message["Subject"] = f"🏑 Fin de match: {equipe_domicile} vs {equipe_exterieur}"
-            message["From"] = sender_email
-            message["To"] = recipient_email
+            message = Mail(
+                from_email=sender_email,
+                to_emails=recipient_email,
+                subject=f"🏑 Fin de match: {equipe_domicile} vs {equipe_exterieur}",
+                html_content=html_content
+            )
             
-            # Ajouter la version HTML
-            message.attach(MIMEText(html_content, "html"))
-            
-            # Envoyer
-            server.sendmail(sender_email, recipient_email, message.as_string())
+            response = sg.send(message)
+            if response.status_code not in [200, 201, 202]:
+                print(f"Erreur SendGrid {response.status_code}: {response.body}")
+                return False
         
-        server.quit()
         return True
         
     except Exception as e:
-        print(f"Erreur lors de l'envoi d'email: {str(e)}")
+        print(f"Erreur lors de l'envoi d'email SendGrid: {str(e)}")
         return False
 
 
@@ -691,67 +685,59 @@ async def notification_stats():
 @app.get("/api/v1/debug/email-test", tags=["Debug"])
 async def debug_email_test():
     """
-    Endpoint de test pour déboguer les emails.
+    Endpoint de test pour déboguer les emails avec SendGrid.
     Envoie un email de test et affiche tous les logs.
     """
-    import smtplib
     from datetime import datetime
     
-    gmail_email = os.environ.get("GMAIL_EMAIL")
-    gmail_password = os.environ.get("GMAIL_PASSWORD")
+    sendgrid_api_key = os.environ.get("SENDGRID_API_KEY")
     
     debug_info = {
         "timestamp": str(datetime.now()),
-        "email_configured": bool(gmail_email),
-        "password_configured": bool(gmail_password),
-        "email_value": gmail_email if gmail_email else "NOT SET",
-        "password_length": len(gmail_password) if gmail_password else 0,
+        "sendgrid_configured": bool(sendgrid_api_key),
+        "api_key_length": len(sendgrid_api_key) if sendgrid_api_key else 0,
         "subscribers": list(email_subscribers),
         "test_result": None,
         "error": None
     }
     
-    if not gmail_email or not gmail_password:
-        debug_info["error"] = "Gmail credentials not configured on Render!"
+    if not sendgrid_api_key:
+        debug_info["error"] = "SENDGRID_API_KEY not configured on Render!"
         return debug_info
     
     try:
-        # Test connexion SMTP (port 587 avec TLS)
-        debug_info["test_result"] = "Connecting to Gmail SMTP (port 587)..."
-        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
-        server.starttls()
-        debug_info["test_result"] = "TLS enabled! Logging in..."
-        server.login(gmail_email, gmail_password)
-        debug_info["test_result"] = "Login successful! Sending test email..."
+        sg = SendGridAPIClient(sendgrid_api_key)
+        sender_email = "notification@hockeyffh.fr"
+        recipient = list(email_subscribers)[0] if email_subscribers else "test@example.com"
         
-        # Envoyer email de test
-        message = MIMEMultipart("alternative")
-        message["Subject"] = "✅ Test d'Email - Hockey API"
-        message["From"] = gmail_email
-        message["To"] = email_subscribers.pop() if email_subscribers else "admin@test.com"
+        debug_info["test_result"] = f"Creating SendGrid message..."
         
         html = f"""
         <html><body style="font-family: Arial; background: #667eea; padding: 20px;">
         <div style="background: white; padding: 20px; border-radius: 10px;">
-        <h2>✅ Test d'Email - Hockey API</h2>
+        <h2>✅ Test d'Email - Hockey API SendGrid</h2>
         <p>Cet email de test prouve que le système fonctionne!</p>
         <p><strong>Heure:</strong> {datetime.now()}</p>
-        <p><strong>Email:</strong> {gmail_email}</p>
+        <p><strong>De:</strong> {sender_email}</p>
+        <p><strong>À:</strong> {recipient}</p>
         </div></body></html>
         """
         
-        message.attach(MIMEText(html, "html"))
-        server.sendmail(gmail_email, message["To"], message.as_string())
-        server.quit()
+        message = Mail(
+            from_email=sender_email,
+            to_emails=recipient,
+            subject="✅ Test d'Email - Hockey API SendGrid",
+            html_content=html
+        )
         
-        debug_info["test_result"] = f"✅ Email envoyé avec succès à {message['To']}!"
+        debug_info["test_result"] = "Sending via SendGrid..."
+        response = sg.send(message)
         
-    except smtplib.SMTPAuthenticationError as e:
-        debug_info["error"] = f"SMTP Auth Error: {str(e)}"
-    except smtplib.SMTPException as e:
-        debug_info["error"] = f"SMTP Error: {str(e)}"
+        debug_info["test_result"] = f"✅ Email envoyé! Status: {response.status_code}"
+        debug_info["response_code"] = response.status_code
+        
     except Exception as e:
-        debug_info["error"] = f"Unexpected error: {str(e)}"
+        debug_info["error"] = f"Error: {str(e)}"
     
     return debug_info
 
