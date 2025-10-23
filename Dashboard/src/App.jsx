@@ -65,13 +65,17 @@ function App() {
       } else if (competitionId === 'interligues-u14-garcons-poule-b') {
         promises.push(axios.get(`${API_BASE}/interligues-u14-garcons-poule-b/matchs`));
       } else if (competitionId === 'interligues-u14-filles') {
+        promises.push(axios.get(`${API_BASE}/interligues-u14-filles/classement`));
         promises.push(axios.get(`${API_BASE}/interligues-u14-filles/matchs`));
       }
 
       const results = await Promise.all(promises);
 
-      if (competitionId === 'carquefou-sd' || competitionId === 'interligues-u14-garcons' || competitionId === 'interligues-u14-garcons-poule-a' || competitionId === 'interligues-u14-garcons-poule-b' || competitionId === 'interligues-u14-filles') {
+      if (competitionId === 'carquefou-sd' || competitionId === 'interligues-u14-garcons' || competitionId === 'interligues-u14-garcons-poule-a' || competitionId === 'interligues-u14-garcons-poule-b') {
         setMatchs(results[0].data.data);
+      } else if (competitionId === 'interligues-u14-filles') {
+        setClassement(results[0].data.data);
+        setMatchs(results[1].data.data);
       } else {
         setClassement(results[0].data.data);
         setMatchs(results[1].data.data);
@@ -112,7 +116,7 @@ function App() {
         ) : (
           <div>
             <div className="tabs">
-              {selectedCompetition !== 'carquefou-sd' && selectedCompetition !== 'interligues-u14-garcons' && selectedCompetition !== 'interligues-u14-garcons-poule-a' && selectedCompetition !== 'interligues-u14-garcons-poule-b' && selectedCompetition !== 'interligues-u14-filles' && (
+              {selectedCompetition !== 'carquefou-sd' && selectedCompetition !== 'interligues-u14-garcons' && selectedCompetition !== 'interligues-u14-garcons-poule-a' && selectedCompetition !== 'interligues-u14-garcons-poule-b' && (
                 <button
                   className={`tab-button ${activeTab === 'classement' ? 'active' : ''}`}
                   onClick={() => setActiveTab('classement')}

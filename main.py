@@ -506,6 +506,19 @@ async def health_check():
 
 import requests
 
+@app.get("/api/v1/interligues-u14-filles/classement", tags=["Interligues U14"], summary="Classement U14 Filles")
+def get_classement_interligues_u14_filles():
+    """
+    Récupère le classement calculé des Interligues U14 Filles.
+    Calcul automatique: Victoire=3pts, Nul=1pt, Défaite=0pts
+    Critères de départage: Différence de buts
+    
+    Returns:
+        Classement des équipes U14 Filles
+    """
+    return calculate_classement_u14_filles()
+
+
 @app.get("/api/v1/interligues-u14-filles/matchs", tags=["Interligues U14"], summary="Matchs U14 Filles")
 def get_matchs_interligues_u14_filles():
     """
@@ -555,6 +568,108 @@ def get_matchs_interligues_u14_filles():
             return {"success": False, "data": [], "count": 0}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Filles: {str(e)}")
+
+
+def calculate_classement_u14_filles():
+    """
+    Calcule le classement des U14 Filles à partir des matchs.
+    Règles: Victoire = 3pts, Nul = 1pt, Défaite = 0pts
+    Critères de départage: Différence de buts
+    """
+    try:
+        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+        params = {
+            "SaisonAnnee": "2026",
+            "ManifId": "4401"  # U14 Filles
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        if data.get("ResponseCode") == "200" and "Response" in data:
+            matches_raw = data["Response"].get("RencontresArray", {})
+            
+            # Dictionnaire pour stocker les stats de chaque équipe
+            standings = {}
+            
+            for match in matches_raw.values():
+                # Récupérer les infos du match
+                equipe1_nom = match.get("Equipe1", {}).get("EquipeNom", "TBD")
+                equipe2_nom = match.get("Equipe2", {}).get("EquipeNom", "TBD")
+                but1 = match.get("Scores", {}).get("RencButsEqp1")
+                but2 = match.get("Scores", {}).get("RencButsEqp2")
+                
+                # Ignorer les matchs non joués (pas de score)
+                if not but1 or not but2:
+                    continue
+                
+                but1 = int(but1)
+                but2 = int(but2)
+                
+                # Initialiser les équipes si pas encore dans le classement
+                if equipe1_nom not in standings:
+                    standings[equipe1_nom] = {
+                        "equipe": equipe1_nom,
+                        "joues": 0,
+                        "gagnees": 0,
+                        "nulles": 0,
+                        "perdues": 0,
+                        "buts_pour": 0,
+                        "buts_contre": 0,
+                        "points": 0
+                    }
+                
+                if equipe2_nom not in standings:
+                    standings[equipe2_nom] = {
+                        "equipe": equipe2_nom,
+                        "joues": 0,
+                        "gagnees": 0,
+                        "nulles": 0,
+                        "perdues": 0,
+                        "buts_pour": 0,
+                        "buts_contre": 0,
+                        "points": 0
+                    }
+                
+                # Mettre à jour les stats
+                standings[equipe1_nom]["joues"] += 1
+                standings[equipe1_nom]["buts_pour"] += but1
+                standings[equipe1_nom]["buts_contre"] += but2
+                
+                standings[equipe2_nom]["joues"] += 1
+                standings[equipe2_nom]["buts_pour"] += but2
+                standings[equipe2_nom]["buts_contre"] += but1
+                
+                # Calculer les points
+                if but1 > but2:  # Équipe 1 gagne
+                    standings[equipe1_nom]["gagnees"] += 1
+                    standings[equipe1_nom]["points"] += 3
+                    standings[equipe2_nom]["perdues"] += 1
+                elif but2 > but1:  # Équipe 2 gagne
+                    standings[equipe2_nom]["gagnees"] += 1
+                    standings[equipe2_nom]["points"] += 3
+                    standings[equipe1_nom]["perdues"] += 1
+                else:  # Match nul
+                    standings[equipe1_nom]["nulles"] += 1
+                    standings[equipe1_nom]["points"] += 1
+                    standings[equipe2_nom]["nulles"] += 1
+                    standings[equipe2_nom]["points"] += 1
+            
+            # Calculer la différence de buts et trier
+            classement = []
+            for equipe in standings.values():
+                equipe["difference_buts"] = equipe["buts_pour"] - equipe["buts_contre"]
+                classement.append(equipe)
+            
+            # Trier par: Points DESC, Différence de buts DESC, Buts marqués DESC
+            classement.sort(key=lambda x: (-x["points"], -x["difference_buts"], -x["buts_pour"]))
+            
+            return {"success": True, "data": classement, "count": len(classement)}
+        else:
+            return {"success": False, "data": [], "count": 0}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors du calcul du classement U14 Filles: {str(e)}")
 
 
 @app.get("/api/v1/interligues-u14-garcons/matchs", tags=["Interligues U14"], summary="Matchs U14 Garçons")
