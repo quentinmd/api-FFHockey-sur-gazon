@@ -608,6 +608,92 @@ def get_matchs_interligues_u14_garcons():
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons: {str(e)}")
 
 
+@app.get("/api/v1/interligues-u14-garcons-poule-a/matchs", tags=["Interligues U14"])
+async def get_matchs_interligues_u14_garcons_poule_a():
+    """
+    Récupère les matchs des Interligues U14 Garçons - POULE A uniquement.
+    """
+    try:
+        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+        params = {
+            "SaisonAnnee": "2026",
+            "ManifId": "4400"
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        if data.get("ResponseCode") == "200" and "Response" in data:
+            matches_raw = data["Response"].get("RencontresArray", {})
+            # Filtrer et transformer les données pour Poule A seulement
+            matches_formatted = []
+            for match in matches_raw.values():
+                # Filtrer par Poule A
+                if match.get("Poule", {}).get("PouleLib") == "Poule A":
+                    formatted_match = {
+                        "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
+                        "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
+                        "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
+                        "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
+                        "date": match.get("RencDateDerog", ""),
+                        "poule": match.get("Poule", {}).get("PouleLib", ""),
+                        "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
+                    }
+                    matches_formatted.append(formatted_match)
+            
+            # Vérifier les matchs terminés et envoyer des notifications
+            check_and_notify_finished_matches(matches_formatted, "u14-garcons-a", "U14 Garçons - Poule A")
+            
+            return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
+        else:
+            return {"success": False, "data": [], "count": 0}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons Poule A: {str(e)}")
+
+
+@app.get("/api/v1/interligues-u14-garcons-poule-b/matchs", tags=["Interligues U14"])
+async def get_matchs_interligues_u14_garcons_poule_b():
+    """
+    Récupère les matchs des Interligues U14 Garçons - POULE B uniquement.
+    """
+    try:
+        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+        params = {
+            "SaisonAnnee": "2026",
+            "ManifId": "4400"
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        if data.get("ResponseCode") == "200" and "Response" in data:
+            matches_raw = data["Response"].get("RencontresArray", {})
+            # Filtrer et transformer les données pour Poule B seulement
+            matches_formatted = []
+            for match in matches_raw.values():
+                # Filtrer par Poule B
+                if match.get("Poule", {}).get("PouleLib") == "Poule B":
+                    formatted_match = {
+                        "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
+                        "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
+                        "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
+                        "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
+                        "date": match.get("RencDateDerog", ""),
+                        "poule": match.get("Poule", {}).get("PouleLib", ""),
+                        "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
+                    }
+                    matches_formatted.append(formatted_match)
+            
+            # Vérifier les matchs terminés et envoyer des notifications
+            check_and_notify_finished_matches(matches_formatted, "u14-garcons-b", "U14 Garçons - Poule B")
+            
+            return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
+        else:
+            return {"success": False, "data": [], "count": 0}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons Poule B: {str(e)}")
+
+
 # ============================================
 # ENDPOINTS EMAIL NOTIFICATIONS
 # ============================================
