@@ -598,6 +598,7 @@ def get_matchs_interligues_u14_garcons():
                     "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
                     "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
                     "date": match.get("RencDateDerog", ""),
+                    "poule": match.get("Poule", {}).get("PouleLib", ""),
                     "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
                 }
                 matches_formatted.append(formatted_match)
