@@ -1186,6 +1186,133 @@ async def test_send_notification_interligues():
         }
 
 
+# ============================================
+# ENDPOINTS - FEUILLE DE MATCH & OFFICIELS
+# ============================================
+
+@app.get("/api/v1/match/{renc_id}/officiels", tags=["Feuille de Match"], summary="Officiels du match")
+async def get_match_officials(renc_id: str, manif_id: str = ""):
+    """
+    Récupère les officiels (arbitres, délégués, etc.) pour un match spécifique.
+    
+    Args:
+        renc_id: L'identifiant de la rencontre (RencId)
+        manif_id: L'identifiant optionnel de la manifestation
+        
+    Returns:
+        Liste des officiels avec leurs fonctions et informations personnelles
+        
+    Example:
+        /api/v1/match/196053/officiels
+    """
+    try:
+        import requests
+        
+        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerOfficiels"
+        params = {
+            "SaisonAnnee": "2026",
+            "RencId": renc_id,
+            "ManifId": manif_id or "",
+            "PersonneId": "",
+            "LicenceCode": ""
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get("ResponseCode") != "200":
+            raise HTTPException(
+                status_code=404,
+                detail=f"Erreur lors de la récupération des officiels: {data.get('ResponseMessage')}"
+            )
+        
+        officials_data = data.get("Response", {})
+        officials_array = officials_data.get("OfficielsArray", {})
+        
+        # Transformer les données pour un format plus lisible
+        officials_list = []
+        for official_id, official_info in officials_array.items():
+            fonction = official_info.get("Fonction", {})
+            personne = official_info.get("Personne", {})
+            
+            officials_list.append({
+                "fonction": fonction.get("FonctionLibelle", ""),
+                "code_fonction": fonction.get("FonctionCode", ""),
+                "nom": f"{personne.get('PersonneNom', '')} {personne.get('PersonnePrenom', '')}".strip(),
+                "civilite": personne.get("PersonneCivilite", ""),
+                "licence": personne.get("LicenceCode", ""),
+                "personne_id": personne.get("PersonneId", "")
+            })
+        
+        return {
+            "success": True,
+            "renc_id": renc_id,
+            "nb_officials": officials_data.get("NbOfficiels", 0),
+            "data": officials_list
+        }
+        
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Timeout lors de la récupération des officiels")
+    except requests.exceptions.ConnectionError:
+        raise HTTPException(status_code=503, detail="Impossible de se connecter à l'API FFH")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
+@app.get("/api/v1/match/{renc_id}/feuille-de-match", tags=["Feuille de Match"], summary="Feuille de match HTML")
+async def get_match_sheet(renc_id: str):
+    """
+    Récupère la feuille de match (HTML) pour un match spécifique.
+    Contient tous les détails du match: buteurs, cartons, joueurs, etc.
+    
+    Args:
+        renc_id: L'identifiant de la rencontre (RencId)
+        
+    Returns:
+        HTML de la feuille de match avec tous les détails du match
+        
+    Example:
+        /api/v1/match/196053/feuille-de-match
+    """
+    try:
+        import requests
+        
+        url = "https://championnats.ffhockey.org/rest2/Championnats/FeuilleDeMatchHTML"
+        params = {
+            "SaisonAnnee": "2026",
+            "RencId": renc_id
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get("ResponseCode") != "200":
+            raise HTTPException(
+                status_code=404,
+                detail=f"Erreur lors de la récupération de la feuille de match: {data.get('ResponseMessage')}"
+            )
+        
+        response_data = data.get("Response", {})
+        html_content = response_data.get("RenduHTML", "")
+        
+        return {
+            "success": True,
+            "renc_id": renc_id,
+            "html": html_content
+        }
+        
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Timeout lors de la récupération de la feuille de match")
+    except requests.exceptions.ConnectionError:
+        raise HTTPException(status_code=503, detail="Impossible de se connecter à l'API FFH")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     # Lancer le serveur sur http://127.0.0.1:8000
