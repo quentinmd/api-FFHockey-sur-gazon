@@ -1013,6 +1013,92 @@ async def debug_email_test():
     return debug_info
 
 
+@app.get("/api/v1/test/send-notification-interligues", tags=["Debug"])
+async def test_send_notification_interligues():
+    """
+    Endpoint de test pour forcer l'envoi d'une notification avec un match réel des Interligues.
+    Récupère le premier match terminé et envoie l'email.
+    """
+    import requests
+    
+    try:
+        # Récupérer les matchs U14 Garçons
+        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+        params = {
+            "SaisonAnnee": "2026",
+            "ManifId": "4400"
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        test_result = {
+            "timestamp": str(__import__('datetime').datetime.now()),
+            "status": "pending",
+            "message": None,
+            "email_sent": False,
+            "match_found": False,
+            "match_info": None
+        }
+        
+        if data.get("ResponseCode") == "200" and "Response" in data:
+            matches_raw = data["Response"].get("RencontresArray", {})
+            
+            # Chercher le premier match terminé
+            for match in matches_raw.values():
+                but1 = match.get("Scores", {}).get("RencButsEqp1")
+                but2 = match.get("Scores", {}).get("RencButsEqp2")
+                
+                if but1 and but2:  # Match terminé
+                    equipe1 = match.get("Equipe1", {}).get("EquipeNom", "TBD")
+                    equipe2 = match.get("Equipe2", {}).get("EquipeNom", "TBD")
+                    
+                    test_match = {
+                        "equipe_domicile": equipe1,
+                        "equipe_exterieur": equipe2,
+                        "score_domicile": but1,
+                        "score_exterieur": but2,
+                        "date": match.get("RencDateDerog", ""),
+                        "statut": "FINISHED"
+                    }
+                    
+                    test_result["match_found"] = True
+                    test_result["match_info"] = test_match
+                    
+                    # Envoyer l'email
+                    if email_subscribers:
+                        success = send_match_finished_email(
+                            email_subscribers,
+                            test_match,
+                            "U14 Garçons - TEST"
+                        )
+                        
+                        test_result["email_sent"] = success
+                        test_result["status"] = "success" if success else "error"
+                        test_result["message"] = f"Email envoyé à {len(email_subscribers)} abonné(s)" if success else "Erreur lors de l'envoi"
+                    else:
+                        test_result["status"] = "error"
+                        test_result["message"] = "Aucun abonné configuré"
+                    
+                    break
+            
+            if not test_result["match_found"]:
+                test_result["status"] = "no_match"
+                test_result["message"] = "Aucun match terminé trouvé dans les Interligues U14 Garçons"
+        else:
+            test_result["status"] = "error"
+            test_result["message"] = "Erreur lors de la récupération des matchs"
+        
+        return test_result
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Erreur: {str(e)}",
+            "email_sent": False
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     # Lancer le serveur sur http://127.0.0.1:8000
