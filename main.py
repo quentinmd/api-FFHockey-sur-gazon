@@ -178,7 +178,7 @@ def format_match_data(match, include_renc_id=True):
     
     # Ajouter le RencId si disponible
     if include_renc_id:
-        formatted["renc_id"] = match.get("RencId", "")
+        formatted["rencId"] = match.get("RencId", "")
     
     return formatted
 
