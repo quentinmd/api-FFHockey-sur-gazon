@@ -155,6 +155,33 @@ def save_notified_matches(matches):
 email_subscribers = load_subscribers()
 notified_matches = load_notified_matches()
 
+def format_match_data(match, include_renc_id=True):
+    """
+    Transforme les données brutes d'un match FFHockey en format standardisé.
+    Ajoute le RencId pour permettre l'accès à la feuille de match.
+    
+    Args:
+        match: Dictionnaire brut du match FFHockey
+        include_renc_id: Si True, inclut le RencId dans les données formatées
+        
+    Returns:
+        Dictionnaire formaté avec les champs standardisés
+    """
+    formatted = {
+        "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
+        "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
+        "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
+        "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
+        "date": match.get("RencDateDerog", ""),
+        "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
+    }
+    
+    # Ajouter le RencId si disponible
+    if include_renc_id:
+        formatted["renc_id"] = match.get("RencId", "")
+    
+    return formatted
+
 def send_match_finished_email(subscribers, match_data, competition_name):
     """
     Envoie un email à tous les abonnés quand un match se termine via SendGrid.
@@ -620,17 +647,10 @@ def get_matchs_interligues_u14_filles():
         
         if data.get("ResponseCode") == "200" and "Response" in data:
             matches_raw = data["Response"].get("RencontresArray", {})
-            # Transformer les données au format attendu par le Dashboard
+            # Transformer les données au format attendu par le Dashboard avec RencId
             matches_formatted = []
             for match in matches_raw.values():
-                formatted_match = {
-                    "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
-                    "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
-                    "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
-                    "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
-                    "date": match.get("RencDateDerog", ""),
-                    "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
-                }
+                formatted_match = format_match_data(match, include_renc_id=True)
                 matches_formatted.append(formatted_match)
             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
         else:
@@ -773,18 +793,12 @@ def get_matchs_interligues_u14_garcons():
         
         if data.get("ResponseCode") == "200" and "Response" in data:
             matches_raw = data["Response"].get("RencontresArray", {})
-            # Transformer les données au format attendu par le Dashboard
+            # Transformer les données au format attendu par le Dashboard avec RencId
             matches_formatted = []
             for match in matches_raw.values():
-                formatted_match = {
-                    "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
-                    "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
-                    "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
-                    "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
-                    "date": match.get("RencDateDerog", ""),
-                    "poule": match.get("Poule", {}).get("PouleLib", ""),
-                    "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
-                }
+                formatted_match = format_match_data(match, include_renc_id=True)
+                # Ajouter le champ poule s'il existe
+                formatted_match["poule"] = match.get("Poule", {}).get("PouleLib", "")
                 matches_formatted.append(formatted_match)
             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
         else:
@@ -810,20 +824,13 @@ async def get_matchs_interligues_u14_garcons_poule_a():
         
         if data.get("ResponseCode") == "200" and "Response" in data:
             matches_raw = data["Response"].get("RencontresArray", {})
-            # Filtrer et transformer les données pour Poule A seulement
+            # Filtrer et transformer les données pour Poule A seulement avec RencId
             matches_formatted = []
             for match in matches_raw.values():
                 # Filtrer par Poule A
                 if match.get("Poule", {}).get("PouleLib") == "Poule A":
-                    formatted_match = {
-                        "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
-                        "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
-                        "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
-                        "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
-                        "date": match.get("RencDateDerog", ""),
-                        "poule": match.get("Poule", {}).get("PouleLib", ""),
-                        "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
-                    }
+                    formatted_match = format_match_data(match, include_renc_id=True)
+                    formatted_match["poule"] = match.get("Poule", {}).get("PouleLib", "")
                     matches_formatted.append(formatted_match)
             
             # Vérifier les matchs terminés et envoyer des notifications
@@ -858,16 +865,7 @@ async def get_matchs_interligues_u14_garcons_poule_b():
             for match in matches_raw.values():
                 # Filtrer par Poule B
                 if match.get("Poule", {}).get("PouleLib") == "Poule B":
-                    formatted_match = {
-                        "equipe_domicile": match.get("Equipe1", {}).get("EquipeNom", "TBD"),
-                        "equipe_exterieur": match.get("Equipe2", {}).get("EquipeNom", "TBD"),
-                        "score_domicile": match.get("Scores", {}).get("RencButsEqp1") or "",
-                        "score_exterieur": match.get("Scores", {}).get("RencButsEqp2") or "",
-                        "date": match.get("RencDateDerog", ""),
-                        "poule": match.get("Poule", {}).get("PouleLib", ""),
-                        "statut": "FINISHED" if (match.get("Scores", {}).get("RencButsEqp1") and match.get("Scores", {}).get("RencButsEqp2")) else "SCHEDULED"
-                    }
-                    matches_formatted.append(formatted_match)
+                    matches_formatted.append(format_match_data(match))
             
             # Vérifier les matchs terminés et envoyer des notifications
             check_and_notify_finished_matches(matches_formatted, "u14-garcons-b", "U14 Garçons - Poule B")

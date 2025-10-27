@@ -1,0 +1,226 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║         🏑 FFH HOCKEY DASHBOARD - EMAIL NOTIFICATIONS 📧                  ║
+║                                                                            ║
+║                    ✅ IMPLÉMENTATION COMPLÈTE ✅                           ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📋 FICHIERS CRÉÉS / MODIFIÉS:
+
+BACKEND (API):
+  ✅ main.py
+     - Endpoint POST /api/v1/subscribe (enregistrer email)
+     - Endpoint DELETE /api/v1/unsubscribe (se désabonner)
+     - Endpoint GET /api/v1/notifications/stats (voir stats)
+     - Détection automatique des matchs terminés
+     - Envoi emails via Gmail SMTP
+
+FRONTEND (Dashboard):
+  ✅ Dashboard/src/components/Newsletter.jsx
+     - Formulaire d'abonnement/désinscription
+     - Validation email client
+     - Feedback utilisateur
+
+  ✅ Dashboard/src/styles/Newsletter.css
+     - Design moderne avec dégradé violet
+     - Responsive (mobile/desktop)
+
+  ✅ Dashboard/src/App.jsx
+     - Import et intégration Newsletter component
+
+CONFIGURATION:
+  ✅ .env.example - Template de configuration
+  ✅ .gitignore - Protéger .env et fichiers JSON
+  ✅ requirements.txt - (python-dotenv déjà installé)
+
+DOCUMENTATION:
+  ✅ SETUP_EMAIL_RAPIDE.md ⭐ COMMENCER ICI
+     → Configuration en 3 étapes (5 min)
+  
+  ✅ EMAIL_NOTIFICATIONS.md
+     → Documentation complète et détaillée
+  
+  ✅ EMAIL_SETUP_README.md
+     → Vue d'ensemble et guide d'utilisation
+  
+  ✅ IMPLEMENTATION_SUMMARY.md
+     → Résumé technique des modifications
+
+SCRIPTS DE TEST:
+  ✅ test_email_setup.py
+     → Vérifie la configuration Gmail
+  
+  ✅ check_email_setup.py
+     → Checklist complète du setup
+
+════════════════════════════════════════════════════════════════════════════
+
+🚀 DÉMARRAGE RAPIDE:
+
+  1️⃣  CRÉER LE FICHIER .env:
+      
+      Créez un fichier ".env" à côté de main.py avec:
+      
+      GMAIL_EMAIL=votre_email@gmail.com
+      GMAIL_PASSWORD=votre_mot_de_passe_app_gmail_16_caracteres
+
+  2️⃣  DÉMARRER L'API (Terminal 1):
+      
+      $ cd /Users/qm/Library/CloudStorage/OneDrive-EcolesGaliléoGlobalEducationFrance/CHC\ -\ Code/V1\ -\ API
+      $ source .venv/bin/activate
+      $ python3 main.py
+      
+      → L'API démarre sur http://localhost:8000
+
+  3️⃣  DÉMARRER LE DASHBOARD (Terminal 2):
+      
+      $ cd Dashboard
+      $ npm run dev
+      
+      → Le dashboard démarre sur http://localhost:5173
+
+  4️⃣  S'ABONNER AUX EMAILS:
+      
+      1. Ouvrez http://localhost:5173
+      2. Scroll down jusqu'à "📧 Notifications par Email"
+      3. Entrez votre email
+      4. Cliquez "✉️ S'abonner"
+      
+      ✅ Terminé ! Vous recevrez un email à la fin du prochain match
+
+════════════════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTATION (3 NIVEAUX):
+
+  ⭐ DÉMARRAGE: SETUP_EMAIL_RAPIDE.md
+     → Configuration en 3 étapes
+     → Utilisation immédiate (5 min)
+  
+  📖 COMPLÈTE: EMAIL_NOTIFICATIONS.md
+     → Architecture détaillée
+     → Setup Gmail avec détails
+     → Tous les endpoints
+     → Dépannage approfondi
+  
+  🔧 TECHNIQUE: IMPLEMENTATION_SUMMARY.md
+     → Liste des modifications
+     → Flux de notifications
+     → Points clés de l'implémentation
+
+════════════════════════════════════════════════════════════════════════════
+
+🔐 CONFIGURATION GMAIL (Résumé):
+
+  ÉTAPE 1: Activer la vérification en 2 étapes
+  ─────────────────────────────────────────────
+  → Allez sur https://myaccount.google.com/security
+  → Activez "Vérification en 2 étapes"
+
+  ÉTAPE 2: Créer un mot de passe d'application
+  ──────────────────────────────────────────────
+  → Dans "Mots de passe d'application"
+  → Sélectionnez: Application = Mail, Appareil = Votre OS
+  → Copiez le mot de passe de 16 caractères
+
+  ÉTAPE 3: Créer le fichier .env
+  ──────────────────────────────
+  → Créez ".env" à côté de main.py avec:
+    GMAIL_EMAIL=votre_email@gmail.com
+    GMAIL_PASSWORD=votre_mot_de_passe_16_chars
+
+════════════════════════════════════════════════════════════════════════════
+
+📊 FLUX DE NOTIFICATIONS:
+
+  Dashboard              Backend API            Gmail SMTP
+  ─────────────────────  ─────────────────────  ──────────────
+  
+  User entre email  →    POST /subscribe
+                    ✓    Sauvegarde email_subscribers.json
+                    
+  Dashboard poll    →    GET /api/matchs
+  (toutes les 30s)  ✓    Détecte FINISHED
+                    ✓    Crée email HTML
+                    ✓    Envoie via Gmail
+                    ✓    Marque comme notifié
+                    
+                              │
+                              ↓
+                         📨 Email reçu
+
+════════════════════════════════════════════════════════════════════════════
+
+✨ FONCTIONNALITÉS:
+
+  ✅ Détection automatique des matchs terminés
+  ✅ Emails HTML formatés et élégants
+  ✅ Abonnement/Désabonnement depuis le dashboard
+  ✅ Validation email côté client et serveur
+  ✅ Évite les doublons (historique dans JSON)
+  ✅ Messages de feedback utilisateur
+  ✅ Responsive design (mobile/desktop)
+  ✅ Sécurité (.env dans .gitignore)
+  ✅ Documentation complète
+  ✅ Scripts de test et diagnostique
+
+════════════════════════════════════════════════════════════════════════════
+
+🧪 TESTS RAPIDES:
+
+  VÉRIFIER LA CONFIGURATION:
+  $ python3 test_email_setup.py
+  $ python3 check_email_setup.py
+
+  S'ABONNER VIA API:
+  $ curl -X POST http://localhost:8000/api/v1/subscribe \
+      -H "Content-Type: application/json" \
+      -d '{"email": "test@gmail.com"}'
+
+  VOIR LES STATS:
+  $ curl http://localhost:8000/api/v1/notifications/stats
+
+  SE DÉSABONNER:
+  $ curl -X DELETE http://localhost:8000/api/v1/unsubscribe \
+      -H "Content-Type: application/json" \
+      -d '{"email": "test@gmail.com"}'
+
+════════════════════════════════════════════════════════════════════════════
+
+📁 FICHIERS DE DONNÉES (créés automatiquement):
+
+  email_subscribers.json
+  ──────────────────────
+  Liste des adresses email abonnées
+  Créé au premier abonnement
+  
+  Example:
+  ["user1@gmail.com", "user2@outlook.com"]
+
+  notified_matches.json
+  ─────────────────────
+  Historique des matchs notifiés
+  Empêche les doublons
+  Créé au premier match terminé
+
+════════════════════════════════════════════════════════════════════════════
+
+❓ QUESTIONS?
+
+  1. QUICK START (5 min) → SETUP_EMAIL_RAPIDE.md
+  2. DOCUMENTATION → EMAIL_NOTIFICATIONS.md
+  3. PROBLÈME? → EMAIL_NOTIFICATIONS.md (section Troubleshooting)
+  4. DIAGNOSTIC → python3 check_email_setup.py
+
+════════════════════════════════════════════════════════════════════════════
+
+🎉 PRÊT À COMMENCER?
+
+  → Lisez SETUP_EMAIL_RAPIDE.md (5 minutes)
+  → Créez le fichier .env
+  → Lancez l'API et le Dashboard
+  → S'abonnez via le formulaire email
+
+════════════════════════════════════════════════════════════════════════════
+
+© 2025 FFH Hockey Dashboard

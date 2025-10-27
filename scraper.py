@@ -251,7 +251,7 @@ def get_matchs_poule(poule_id: str) -> List[Dict]:
                 statut = "SCHEDULED"
             
             match_dict = {
-                "id_match": str(renc_id),
+                "rencId": str(renc_id),
                 "date": str(renc_date),
                 "equipe_domicile": str(equipe1_name),
                 "equipe_exterieur": str(equipe2_name),
@@ -359,7 +359,7 @@ def _get_matchs_by_team_name(manif_id: str, team_name_filter: str) -> List[Dict]
                 statut = "SCHEDULED"
             
             match_dict = {
-                "id_match": str(renc_id),
+                "rencId": str(renc_id),
                 "date": str(renc_date),
                 "equipe_domicile": str(equipe1_name),
                 "equipe_exterieur": str(equipe2_name),
@@ -466,7 +466,7 @@ def _get_matches_by_manif(manif_id: str) -> List[Dict]:
                 statut = "SCHEDULED"
             
             match_dict = {
-                "id_match": str(renc_id),
+                "rencId": str(renc_id),
                 "date": str(renc_date),
                 "equipe_domicile": str(equipe1_name),
                 "equipe_exterieur": str(equipe2_name),
