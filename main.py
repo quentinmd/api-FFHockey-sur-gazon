@@ -12,6 +12,8 @@ import os
 from dotenv import load_dotenv
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 from scraper import (
     get_ranking, get_matches, 
     get_ranking_femmes, get_matches_femmes,
@@ -39,6 +41,73 @@ app.add_middleware(
     allow_methods=["*"],  # Accepte tous les méthodes HTTP
     allow_headers=["*"],  # Accepte tous les headers
 )
+
+# ============================================
+# SCHEDULER - NOTIFICATIONS AUTOMATIQUES
+# ============================================
+
+scheduler = BackgroundScheduler()
+
+def check_all_matches_for_notifications():
+    """
+    Fonction appelée périodiquement pour vérifier tous les matchs
+    et envoyer les notifications automatiquement.
+    """
+    print("⏰ [Scheduler] Vérification automatique des matchs terminés...")
+    try:
+        import requests
+        
+        # Récupérer l'URL de base depuis l'environnement ou utiliser localhost
+        api_url = os.environ.get("API_URL", "http://localhost:8000")
+        
+        endpoints_to_check = [
+            ("elite-hommes", f"{api_url}/api/v1/elite-hommes/matchs", "Elite Hommes"),
+            ("elite-femmes", f"{api_url}/api/v1/elite-femmes/matchs", "Elite Femmes"),
+            ("carquefou-1sh", f"{api_url}/api/v1/carquefou/1sh/matchs", "Carquefou 1SH"),
+            ("carquefou-2sh", f"{api_url}/api/v1/carquefou/2sh/matchs", "Carquefou 2SH"),
+            ("carquefou-sd", f"{api_url}/api/v1/carquefou/sd/matchs", "Carquefou SD"),
+            ("u14-garcons", f"{api_url}/api/v1/interligues-u14-garcons/matchs", "U14 Garçons"),
+            ("u14-garcons-a", f"{api_url}/api/v1/interligues-u14-garcons-poule-a/matchs", "U14 Garçons Poule A"),
+            ("u14-garcons-b", f"{api_url}/api/v1/interligues-u14-garcons-poule-b/matchs", "U14 Garçons Poule B"),
+            ("u14-filles", f"{api_url}/api/v1/interligues-u14-filles/matchs", "U14 Filles"),
+        ]
+        
+        for prefix, endpoint_url, comp_name in endpoints_to_check:
+            try:
+                response = requests.get(endpoint_url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("success") and data.get("data"):
+                        print(f"  ✅ {comp_name}: {len(data.get('data', []))} matchs vérifiés")
+                else:
+                    print(f"  ❌ {comp_name}: Erreur {response.status_code}")
+            except Exception as e:
+                print(f"  ❌ {comp_name}: {str(e)}")
+    except Exception as e:
+        print(f"❌ [Scheduler] Erreur: {str(e)}")
+
+# Ajouter le job qui s'exécute toutes les 30 minutes
+scheduler.add_job(
+    check_all_matches_for_notifications,
+    trigger=IntervalTrigger(minutes=30),
+    id='check_matches_notifications',
+    name='Vérifier les matchs terminés toutes les 30 minutes',
+    replace_existing=True
+)
+
+@app.on_event("startup")
+async def start_scheduler():
+    """Démarre le scheduler au lancement de l'API."""
+    if not scheduler.running:
+        scheduler.start()
+        print("✅ [Scheduler] Démarré - Vérification toutes les 30 minutes")
+
+@app.on_event("shutdown")
+async def shutdown_scheduler():
+    """Arrête le scheduler à l'arrêt de l'API."""
+    if scheduler.running:
+        scheduler.shutdown()
+        print("❌ [Scheduler] Arrêté")
 
 # ============================================
 # CONFIGURATION EMAIL GMAIL
