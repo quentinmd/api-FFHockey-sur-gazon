@@ -78,7 +78,10 @@ def check_all_matches_for_notifications():
                 if response.status_code == 200:
                     data = response.json()
                     if data.get("success") and data.get("data"):
-                        print(f"  ✅ {comp_name}: {len(data.get('data', []))} matchs vérifiés")
+                        matches = data.get("data", [])
+                        print(f"  ✅ {comp_name}: {len(matches)} matchs vérifiés")
+                        # Appeler la fonction pour vérifier et notifier les matchs terminés
+                        check_and_notify_finished_matches(matches, prefix, comp_name)
                 else:
                     print(f"  ❌ {comp_name}: Erreur {response.status_code}")
             except Exception as e:
@@ -1009,6 +1012,92 @@ async def debug_email_test():
         debug_info["error"] = f"Error: {str(e)}"
     
     return debug_info
+
+
+@app.get("/api/v1/test/send-notification-u14-filles", tags=["Debug"])
+async def test_send_notification_u14_filles():
+    """
+    Endpoint de test pour forcer l'envoi d'une notification avec un match réel des U14 Filles.
+    Récupère le premier match terminé et envoie l'email.
+    """
+    import requests
+    
+    try:
+        # Récupérer les matchs U14 Filles (ManifId: 4401)
+        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+        params = {
+            "SaisonAnnee": "2026",
+            "ManifId": "4401"
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        test_result = {
+            "timestamp": str(__import__('datetime').datetime.now()),
+            "status": "pending",
+            "message": None,
+            "email_sent": False,
+            "match_found": False,
+            "match_info": None
+        }
+        
+        if data.get("ResponseCode") == "200" and "Response" in data:
+            matches_raw = data["Response"].get("RencontresArray", {})
+            
+            # Chercher le premier match terminé
+            for match in matches_raw.values():
+                but1 = match.get("Scores", {}).get("RencButsEqp1")
+                but2 = match.get("Scores", {}).get("RencButsEqp2")
+                
+                if but1 is not None and but2 is not None:  # Match terminé
+                    equipe1 = match.get("Equipe1", {}).get("EquipeNom", "TBD")
+                    equipe2 = match.get("Equipe2", {}).get("EquipeNom", "TBD")
+                    
+                    test_match = {
+                        "equipe_domicile": equipe1,
+                        "equipe_exterieur": equipe2,
+                        "score_domicile": but1,
+                        "score_exterieur": but2,
+                        "date": match.get("RencDateDerog", ""),
+                        "statut": "FINISHED",
+                        "rencId": match.get("RencId", "")
+                    }
+                    
+                    test_result["match_found"] = True
+                    test_result["match_info"] = test_match
+                    
+                    # Envoyer l'email
+                    if email_subscribers:
+                        success = send_match_finished_email(
+                            email_subscribers,
+                            test_match,
+                            "U14 Filles - TEST"
+                        )
+                        
+                        test_result["email_sent"] = success
+                        test_result["status"] = "success" if success else "error"
+                        test_result["message"] = f"Email envoyé à {len(email_subscribers)} abonné(s)" if success else "Erreur lors de l'envoi"
+                    else:
+                        test_result["status"] = "error"
+                        test_result["message"] = "Aucun abonné configuré"
+                    
+                    break
+            
+            if not test_result["match_found"]:
+                test_result["status"] = "no_match"
+                test_result["message"] = "Aucun match terminé trouvé dans les U14 Filles"
+        else:
+            test_result["status"] = "error"
+            test_result["message"] = "Erreur lors de la récupération des matchs"
+        
+        return test_result
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Exception: {str(e)}"
+        }
 
 
 @app.get("/api/v1/test/send-notification-interligues", tags=["Debug"])
