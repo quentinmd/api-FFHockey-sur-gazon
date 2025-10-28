@@ -1190,7 +1190,214 @@ async def test_send_notification_interligues():
 # ENDPOINTS - FEUILLE DE MATCH & OFFICIELS
 # ============================================
 
-@app.get("/api/v1/match/{renc_id}/officiels", tags=["Feuille de Match"], summary="Officiels du match")
+def parse_scorers_from_html(html_content):
+    """
+    Parse les buteurs depuis le HTML de la feuille de match.
+    Extrait les numéros de maillot et compte les buts marqués.
+    
+    Args:
+        html_content: Le contenu HTML de la feuille de match
+        
+    Returns:
+        Tuple (scorers_team1, scorers_team2) avec les numéros de maillot et leurs buts
+    """
+    import re
+    
+    scorers = {
+        "team1": [],
+        "team2": []
+    }
+    
+    # Chercher les sections "Buteurs :" dans le HTML
+    # Pattern: <strong>Buteurs : </strong>N°X (xY), N°Z (xY)
+    buteurs_pattern = r'<strong>Buteurs : <\/strong>(.*?)(?:<\/div>|$)'
+    buteurs_matches = re.findall(buteurs_pattern, html_content)
+    
+    if len(buteurs_matches) >= 2:
+        # Première équipe
+        buteurs_team1 = buteurs_matches[0].strip()
+        if buteurs_team1 and buteurs_team1 != '&nbsp;':
+            # Parser: N°7 (x1), N°9 (x1), N°19 (x1)
+            numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
+            for num, count in numbers:
+                scorers["team1"].append({
+                    "numero_maillot": int(num),
+                    "buts": int(count)
+                })
+        
+        # Deuxième équipe
+        buteurs_team2 = buteurs_matches[1].strip()
+        if buteurs_team2 and buteurs_team2 != '&nbsp;':
+            numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team2)
+            for num, count in numbers:
+                scorers["team2"].append({
+                    "numero_maillot": int(num),
+                    "buts": int(count)
+                })
+    
+    return scorers
+
+
+def parse_cards_from_html(html_content):
+    """
+    Parse les cartons depuis le HTML de la feuille de match.
+    Identifie les cartons verts, jaunes et rouges.
+    
+    Args:
+        html_content: Le contenu HTML de la feuille de match
+        
+    Returns:
+        Dict avec les cartons organisés par type et équipe
+    """
+    import re
+    
+    cards = {
+        "team1": {
+            "jaune": [],
+            "rouge": [],
+            "vert": []
+        },
+        "team2": {
+            "jaune": [],
+            "rouge": [],
+            "vert": []
+        }
+    }
+    
+    # Chercher les sections de cartons avec classes CSS
+    # Pattern pour les cartons avec noms: <strong class="txt-vert">NOM</strong> ou <span class="CartonJaune">...</span>
+    
+    # Cartons jaunes: <strong>...</strong> avec numéro de maillot avant
+    jaune_pattern = r'<td[^>]*>(\d+)<\/td><td[^>]*>(\d+)<\/td><td[^>]*>([^<]*)<\/td><td[^>]*><span[^>]*class="CartonJaune[^"]*"[^>]*>'
+    
+    # C'est complexe à parser en regex, utilisons BeautifulSoup si disponible
+    # Pour maintenant, on va chercher les classes CSS directement
+    
+    # Chercher .txt-vert (carton vert)
+    vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
+    verts = re.findall(vert_pattern, html_content)
+    
+    # Chercher les cartons dans les deux sections (team1 et team2)
+    # On va chercher par position dans le HTML - première moitié = team1, seconde = team2
+    html_midpoint = len(html_content) // 2
+    
+    # Pour les cartons verts dans team1 et team2
+    for vert_name in verts:
+        pos = html_content.find(f'<strong class="txt-vert">{vert_name}</strong>')
+        if pos < html_midpoint:
+            cards["team1"]["vert"].append({"nom": vert_name.strip()})
+        else:
+            cards["team2"]["vert"].append({"nom": vert_name.strip()})
+    
+    return cards
+
+
+@app.get("/api/v1/match/{renc_id}/buteurs", tags=["Feuille de Match"], summary="Buteurs du match")
+async def get_match_scorers(renc_id: str):
+    """
+    Récupère la liste structurée des buteurs pour un match spécifique.
+    Parse la feuille de match et extrait les numéros de maillot et les buts marqués.
+    
+    Args:
+        renc_id: L'identifiant de la rencontre (RencId)
+        
+    Returns:
+        JSON structuré avec les buteurs par équipe et leurs buts
+        
+    Example:
+        /api/v1/match/196053/buteurs
+    """
+    try:
+        import requests
+        
+        # Récupérer la feuille de match
+        url = "https://championnats.ffhockey.org/rest2/Championnats/FeuilleDeMatchHTML"
+        params = {
+            "SaisonAnnee": "2026",
+            "RencId": renc_id
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get("ResponseCode") != "200":
+            raise HTTPException(
+                status_code=404,
+                detail=f"Erreur lors de la récupération de la feuille de match: {data.get('ResponseMessage')}"
+            )
+        
+        html_content = data.get("Response", {}).get("RenduHTML", "")
+        scorers = parse_scorers_from_html(html_content)
+        
+        return {
+            "success": True,
+            "renc_id": renc_id,
+            "data": scorers
+        }
+        
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Timeout lors de la récupération des buteurs")
+    except requests.exceptions.ConnectionError:
+        raise HTTPException(status_code=503, detail="Impossible de se connecter à l'API FFH")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
+@app.get("/api/v1/match/{renc_id}/cartons", tags=["Feuille de Match"], summary="Cartons du match")
+async def get_match_cards(renc_id: str):
+    """
+    Récupère la liste structurée des cartons pour un match spécifique.
+    Parse la feuille de match et extrait les cartons verts, jaunes et rouges.
+    
+    Args:
+        renc_id: L'identifiant de la rencontre (RencId)
+        
+    Returns:
+        JSON structuré avec les cartons par type et équipe
+        
+    Example:
+        /api/v1/match/196053/cartons
+    """
+    try:
+        import requests
+        
+        # Récupérer la feuille de match
+        url = "https://championnats.ffhockey.org/rest2/Championnats/FeuilleDeMatchHTML"
+        params = {
+            "SaisonAnnee": "2026",
+            "RencId": renc_id
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get("ResponseCode") != "200":
+            raise HTTPException(
+                status_code=404,
+                detail=f"Erreur lors de la récupération de la feuille de match: {data.get('ResponseMessage')}"
+            )
+        
+        html_content = data.get("Response", {}).get("RenduHTML", "")
+        cards = parse_cards_from_html(html_content)
+        
+        return {
+            "success": True,
+            "renc_id": renc_id,
+            "data": cards
+        }
+        
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Timeout lors de la récupération des cartons")
+    except requests.exceptions.ConnectionError:
+        raise HTTPException(status_code=503, detail="Impossible de se connecter à l'API FFH")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
 async def get_match_officials(renc_id: str, manif_id: str = ""):
     """
     Récupère les officiels (arbitres, délégués, etc.) pour un match spécifique.
