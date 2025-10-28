@@ -1435,6 +1435,76 @@ def parse_cards_from_html(html_content):
 
 
 
+def extract_match_info_from_html(html_content):
+    """
+    Extrait les informations du match depuis la feuille de match HTML.
+    Récupère: date, horaire, terrain, équipes et scores.
+    
+    Args:
+        html_content: Le contenu HTML de la feuille de match
+        
+    Returns:
+        Dict avec les infos du match
+    """
+    match_info = {
+        "date": None,
+        "horaire": None,
+        "terrain": None,
+        "team1": {
+            "nom": None,
+            "buts": None
+        },
+        "team2": {
+            "nom": None,
+            "buts": None
+        }
+    }
+    
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Récupérer les paragraphes
+        paragraphs = soup.find_all('p')
+        
+        # Le deuxième paragraphe (index 1) contient date, horaire, terrain
+        if len(paragraphs) > 1:
+            info_para = paragraphs[1].get_text()
+            # Extraire la date
+            date_match = re.search(r'Date\s*:\s*(\d+/\d+/\d+)', info_para)
+            if date_match:
+                match_info["date"] = date_match.group(1)
+            
+            # Extraire l'horaire
+            time_match = re.search(r'Horaire\s*:\s*(\d+:\d+)', info_para)
+            if time_match:
+                match_info["horaire"] = time_match.group(1)
+            
+            # Extraire le terrain
+            terrain_match = re.search(r'Terrain\s*:\s*([^\n]+?)(?:\n|$)', info_para)
+            if terrain_match:
+                match_info["terrain"] = terrain_match.group(1).strip()
+        
+        # Récupérer les noms des équipes et les buts
+        team_names = re.findall(r'<strong>NOM\s*:\s*<\/strong>([^<]+)<', html_content)
+        
+        if len(team_names) >= 2:
+            match_info["team1"]["nom"] = team_names[0].strip()
+            match_info["team2"]["nom"] = team_names[1].strip()
+        
+        # Extraire les scores
+        # Pattern: "Buts en chiffres : X"
+        scores = re.findall(r'Buts en chiffres\s*:\s*(\d+)', html_content)
+        # Les scores sont simplement team1, team2 (pas de buts concédés dans cette extraction)
+        if len(scores) >= 2:
+            match_info["team1"]["buts"] = int(scores[0])
+            match_info["team2"]["buts"] = int(scores[1])
+    
+    except Exception as e:
+        print(f"Error extracting match info: {str(e)}")
+    
+    return match_info
+
+
 @app.get("/api/v1/match/{renc_id}/buteurs", tags=["Feuille de Match"], summary="Buteurs du match")
 async def get_match_scorers(renc_id: str):
     """
@@ -1545,13 +1615,14 @@ async def get_match_cards(renc_id: str):
 async def get_match_officials(renc_id: str, manif_id: str = ""):
     """
     Récupère les officiels (arbitres, délégués, etc.) pour un match spécifique.
+    Inclut aussi les informations du match: équipes, date, heure, terrain, scores.
     
     Args:
         renc_id: L'identifiant de la rencontre (RencId)
         manif_id: L'identifiant optionnel de la manifestation
         
     Returns:
-        Liste des officiels avec leurs fonctions et informations personnelles
+        Objet avec infos du match et liste des officiels avec leurs fonctions
         
     Example:
         /api/v1/match/196053/officiels
@@ -1559,6 +1630,21 @@ async def get_match_officials(renc_id: str, manif_id: str = ""):
     try:
         import requests
         
+        # D'abord récupérer les infos du match depuis la feuille de match
+        sheet_url = "https://championnats.ffhockey.org/rest2/Championnats/FeuilleDeMatchHTML"
+        sheet_params = {
+            "SaisonAnnee": "2026",
+            "RencId": renc_id
+        }
+        sheet_response = requests.get(sheet_url, params=sheet_params, timeout=10)
+        sheet_response.raise_for_status()
+        sheet_data = sheet_response.json()
+        
+        # Extraire les infos du match
+        html_content = sheet_data.get("Response", {}).get("RenduHTML", "")
+        match_info = extract_match_info_from_html(html_content)
+        
+        # Ensuite récupérer les officiels
         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerOfficiels"
         params = {
             "SaisonAnnee": "2026",
@@ -1600,8 +1686,21 @@ async def get_match_officials(renc_id: str, manif_id: str = ""):
         return {
             "success": True,
             "renc_id": renc_id,
+            "match": {
+                "date": match_info.get("date"),
+                "horaire": match_info.get("horaire"),
+                "terrain": match_info.get("terrain"),
+                "team1": {
+                    "nom": match_info.get("team1", {}).get("nom"),
+                    "buts": match_info.get("team1", {}).get("buts")
+                },
+                "team2": {
+                    "nom": match_info.get("team2", {}).get("nom"),
+                    "buts": match_info.get("team2", {}).get("buts")
+                }
+            },
             "nb_officials": officials_data.get("NbOfficiels", 0),
-            "data": officials_list
+            "officiels": officials_list
         }
         
     except requests.exceptions.Timeout:
