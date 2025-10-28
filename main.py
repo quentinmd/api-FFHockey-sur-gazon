@@ -1221,32 +1221,49 @@ def parse_players_table_from_html(html_content):
             players_data["team1"]["nom"] = team_names[0].strip()
             players_data["team2"]["nom"] = team_names[1].strip()
         
-        # Trouver la table des joueurs
-        tables = soup.find_all('table', {'class': 'orbe'})
+        # Trouver la table des joueurs (chercher toutes les tables et trouver celle avec classe "orbe")
+        all_tables = soup.find_all('table')
+        player_table = None
         
-        if len(tables) >= 1:
-            player_table = tables[0]
+        for table in all_tables:
+            table_classes = table.get('class', [])
+            # Vérifier si la classe "orbe" est présente
+            if any('orbe' in str(cls) for cls in table_classes):
+                player_table = table
+                break
+        
+        if player_table:
             tbody = player_table.find('tbody')
             
             if tbody:
                 rows = tbody.find_all('tr')
-                total_rows = len(rows)
                 
-                # Parcourir les lignes pour extraire les joueurs
-                for i, row in enumerate(rows):
+                # Chaque ligne a 8 colonnes (2 équipes x 4 colonnes)
+                # Team1: Col 0-3 (licence, maillot, nom, cartons)
+                # Team2: Col 4-7 (licence, maillot, nom, cartons)
+                
+                for row in rows:
                     cells = row.find_all('td')
-                    if len(cells) >= 3:
-                        maillot_cell = cells[1].get_text(strip=True)
-                        nom_cell = cells[2].get_text(strip=True)
+                    
+                    if len(cells) >= 8:
+                        # Team1
+                        maillot_cell_t1 = cells[1].get_text(strip=True)
+                        nom_cell_t1 = cells[2].get_text(strip=True)
                         
-                        # Extraire le numéro du maillot
-                        maillot_match = re.match(r'(\d+)', maillot_cell)
-                        if maillot_match:
-                            maillot = int(maillot_match.group(1))
-                            if i < total_rows // 2:
-                                players_data["team1"]["joueurs"][maillot] = nom_cell
-                            else:
-                                players_data["team2"]["joueurs"][maillot] = nom_cell
+                        # Team2
+                        maillot_cell_t2 = cells[5].get_text(strip=True)
+                        nom_cell_t2 = cells[6].get_text(strip=True)
+                        
+                        # Extraire les numéros de maillot
+                        maillot_match_t1 = re.match(r'(\d+)', maillot_cell_t1)
+                        if maillot_match_t1 and nom_cell_t1:
+                            maillot_t1 = int(maillot_match_t1.group(1))
+                            players_data["team1"]["joueurs"][maillot_t1] = nom_cell_t1
+                        
+                        maillot_match_t2 = re.match(r'(\d+)', maillot_cell_t2)
+                        if maillot_match_t2 and nom_cell_t2:
+                            maillot_t2 = int(maillot_match_t2.group(1))
+                            players_data["team2"]["joueurs"][maillot_t2] = nom_cell_t2
     
     except Exception as e:
         print(f"Error parsing players table: {str(e)}")
@@ -1265,8 +1282,6 @@ def parse_scorers_from_html(html_content):
     Returns:
         Dict avec les buteurs structurés par équipe avec noms
     """
-    import re
-    
     scorers = {
         "team1": {
             "nom_equipe": "Équipe 1",
