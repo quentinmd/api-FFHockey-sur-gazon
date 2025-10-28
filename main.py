@@ -9,11 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import json
 import os
+import re
 from dotenv import load_dotenv
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from bs4 import BeautifulSoup
 from scraper import (
     get_ranking, get_matches, 
     get_ranking_femmes, get_matches_femmes,
@@ -1190,87 +1192,164 @@ async def test_send_notification_interligues():
 # ENDPOINTS - FEUILLE DE MATCH & OFFICIELS
 # ============================================
 
-def parse_scorers_from_html(html_content):
+# ============================================
+# PARSING FUNCTIONS - MATCH SHEET DATA
+# ============================================
+
+def parse_players_table_from_html(html_content):
     """
-    Parse les buteurs depuis le HTML de la feuille de match.
-    Extrait les numéros de maillot et compte les buts marqués.
+    Parse la table des joueurs depuis le HTML de la feuille de match.
+    Extrait le nom complet et le numéro de maillot de chaque joueur.
     
     Args:
         html_content: Le contenu HTML de la feuille de match
         
     Returns:
-        Tuple (scorers_team1, scorers_team2) avec les numéros de maillot et leurs buts
+        Dict avec équipes et leurs joueurs
+    """
+    players_data = {
+        "team1": {"nom": "", "joueurs": {}},
+        "team2": {"nom": "", "joueurs": {}}
+    }
+    
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Chercher les noms des équipes
+        team_names = re.findall(r'<p><strong>NOM : <\/strong>([^<]+)<\/p>', html_content)
+        if len(team_names) >= 2:
+            players_data["team1"]["nom"] = team_names[0].strip()
+            players_data["team2"]["nom"] = team_names[1].strip()
+        
+        # Trouver la table des joueurs
+        tables = soup.find_all('table', {'class': 'orbe'})
+        
+        if len(tables) >= 1:
+            player_table = tables[0]
+            tbody = player_table.find('tbody')
+            
+            if tbody:
+                rows = tbody.find_all('tr')
+                total_rows = len(rows)
+                
+                # Parcourir les lignes pour extraire les joueurs
+                for i, row in enumerate(rows):
+                    cells = row.find_all('td')
+                    if len(cells) >= 3:
+                        maillot_cell = cells[1].get_text(strip=True)
+                        nom_cell = cells[2].get_text(strip=True)
+                        
+                        # Extraire le numéro du maillot
+                        maillot_match = re.match(r'(\d+)', maillot_cell)
+                        if maillot_match:
+                            maillot = int(maillot_match.group(1))
+                            if i < total_rows // 2:
+                                players_data["team1"]["joueurs"][maillot] = nom_cell
+                            else:
+                                players_data["team2"]["joueurs"][maillot] = nom_cell
+    
+    except Exception as e:
+        print(f"Error parsing players table: {str(e)}")
+    
+    return players_data
+
+
+def parse_scorers_from_html(html_content):
+    """
+    Parse les buteurs depuis le HTML de la feuille de match.
+    Extrait les numéros de maillot, noms complets et compte les buts marqués.
+    
+    Args:
+        html_content: Le contenu HTML de la feuille de match
+        
+    Returns:
+        Dict avec les buteurs structurés par équipe avec noms
     """
     import re
     
     scorers = {
-        "team1": [],
-        "team2": []
+        "team1": {
+            "nom_equipe": "Équipe 1",
+            "buteurs": []
+        },
+        "team2": {
+            "nom_equipe": "Équipe 2",
+            "buteurs": []
+        }
     }
     
-    # Chercher les sections "Buteurs :" dans le HTML
-    # Pattern: <strong>Buteurs : </strong>N°X (xY), N°Z (xY)
-    buteurs_pattern = r'<strong>Buteurs : <\/strong>([^<]*)'
-    buteurs_matches = re.findall(buteurs_pattern, html_content)
-    
-    # Filtrer les résultats vides et les &nbsp;
-    buteurs_valides = [b.strip() for b in buteurs_matches if b.strip() and '&nbsp;' not in b and b.strip() != '']
-    
-    if len(buteurs_valides) >= 2:
-        # Première équipe
-        buteurs_team1 = buteurs_valides[0].strip()
-        if buteurs_team1:
-            # Parser: N°7 (x1), N°9 (x1), N°19 (x1)
+    try:
+        # Récupérer les données des joueurs
+        players_data = parse_players_table_from_html(html_content)
+        scorers["team1"]["nom_equipe"] = players_data["team1"]["nom"]
+        scorers["team2"]["nom_equipe"] = players_data["team2"]["nom"]
+        
+        # Chercher les sections "Buteurs :"
+        buteurs_pattern = r'<strong>Buteurs : <\/strong>([^<]*)'
+        buteurs_matches = re.findall(buteurs_pattern, html_content)
+        
+        # Filtrer les résultats vides
+        buteurs_valides = [b.strip() for b in buteurs_matches if b.strip() and '&nbsp;' not in b and b.strip() != '']
+        
+        if len(buteurs_valides) >= 2:
+            # Première équipe
+            buteurs_team1 = buteurs_valides[0].strip()
+            if buteurs_team1:
+                numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
+                for num, count in numbers:
+                    num = int(num)
+                    nom_joueur = players_data["team1"]["joueurs"].get(num, f"Joueur N°{num}")
+                    scorers["team1"]["buteurs"].append({
+                        "numero_maillot": num,
+                        "nom": nom_joueur,
+                        "buts": int(count)
+                    })
+            
+            # Deuxième équipe
+            buteurs_team2 = buteurs_valides[1].strip()
+            if buteurs_team2:
+                numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team2)
+                for num, count in numbers:
+                    num = int(num)
+                    nom_joueur = players_data["team2"]["joueurs"].get(num, f"Joueur N°{num}")
+                    scorers["team2"]["buteurs"].append({
+                        "numero_maillot": num,
+                        "nom": nom_joueur,
+                        "buts": int(count)
+                    })
+        elif len(buteurs_valides) == 1:
+            buteurs_team1 = buteurs_valides[0].strip()
             numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
             for num, count in numbers:
-                scorers["team1"].append({
-                    "numero_maillot": int(num),
+                num = int(num)
+                nom_joueur = players_data["team1"]["joueurs"].get(num, f"Joueur N°{num}")
+                scorers["team1"]["buteurs"].append({
+                    "numero_maillot": num,
+                    "nom": nom_joueur,
                     "buts": int(count)
                 })
-        
-        # Deuxième équipe
-        buteurs_team2 = buteurs_valides[1].strip()
-        if buteurs_team2:
-            numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team2)
-            for num, count in numbers:
-                scorers["team2"].append({
-                    "numero_maillot": int(num),
-                    "buts": int(count)
-                })
-    elif len(buteurs_valides) == 1:
-        # Un seul match avec buteurs (première équipe)
-        buteurs_team1 = buteurs_valides[0].strip()
-        numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
-        for num, count in numbers:
-            scorers["team1"].append({
-                "numero_maillot": int(num),
-                "buts": int(count)
-            })
+    
+    except Exception as e:
+        print(f"Error parsing scorers: {str(e)}")
     
     return scorers
+
 
 
 def parse_cards_from_html(html_content):
     """
     Parse les cartons depuis le HTML de la feuille de match.
-    Identifie les cartons verts, jaunes et rouges avec les noms des joueurs.
-    
-    Args:
-        html_content: Le contenu HTML de la feuille de match
-        
-    Returns:
-        Dict avec les cartons organisés par type et équipe
+    Identifie les cartons verts, jaunes et rouges avec noms et équipes.
     """
-    import re
-    from bs4 import BeautifulSoup
-    
     cards = {
         "team1": {
+            "nom_equipe": "Équipe 1",
             "jaune": [],
             "rouge": [],
             "vert": []
         },
         "team2": {
+            "nom_equipe": "Équipe 2",
             "jaune": [],
             "rouge": [],
             "vert": []
@@ -1278,86 +1357,66 @@ def parse_cards_from_html(html_content):
     }
     
     try:
-        # Parser avec BeautifulSoup
-        soup = BeautifulSoup(html_content, 'html.parser')
+        players_data = parse_players_table_from_html(html_content)
+        cards["team1"]["nom_equipe"] = players_data["team1"]["nom"]
+        cards["team2"]["nom_equipe"] = players_data["team2"]["nom"]
         
-        # Trouver la table des joueurs (class="orbe")
+        soup = BeautifulSoup(html_content, 'html.parser')
         tables = soup.find_all('table', {'class': 'orbe'})
         
         if len(tables) >= 1:
-            # La table des joueurs avec les cartons
-            player_table = tables[0] if len(tables) > 1 else tables[0]
+            player_table = tables[0]
             tbody = player_table.find('tbody')
             
             if tbody:
                 rows = tbody.find_all('tr')
+                total_rows = len(rows)
                 
-                # Parcourir les lignes pour trouver les cartons
                 for i, row in enumerate(rows):
                     cells = row.find_all('td')
                     if len(cells) >= 4:
-                        # Format: [licence, maillot, nom, carton, ...]
-                        nom_cell = cells[2] if len(cells) > 2 else None
-                        carton_cell = cells[3] if len(cells) > 3 else None
+                        maillot_cell = cells[1].get_text(strip=True)
+                        nom_cell = cells[2].get_text(strip=True)
+                        carton_cell = cells[3]
                         
-                        if nom_cell and carton_cell:
-                            nom = nom_cell.get_text(strip=True)
-                            carton_html = str(carton_cell)
-                            
-                            # Déterminer s'il y a un carton et son type
-                            if 'CartonJaune' in carton_html or 'txt-' in carton_html:
-                                # Vérifier le type exact
-                                if 'CartonRouge' in carton_html or 'txt-orange' in carton_html:
-                                    # Carton rouge
-                                    if i < len(rows) // 2:
-                                        cards["team1"]["rouge"].append({"nom": nom})
-                                    else:
-                                        cards["team2"]["rouge"].append({"nom": nom})
-                                elif 'CartonJaune' in carton_html:
-                                    # Carton jaune
-                                    if i < len(rows) // 2:
-                                        cards["team1"]["jaune"].append({"nom": nom})
-                                    else:
-                                        cards["team2"]["jaune"].append({"nom": nom})
-                            
-                            # Cartons verts (txt-vert dans le span du nom)
-                            if 'txt-vert' in carton_html or 'txt-vert' in str(nom_cell):
-                                nom_clean = nom.replace('CHRETIENNOT ETHEL', 'CHRETIENNOT ETHEL').strip()
-                                if i < len(rows) // 2:
-                                    if {"nom": nom_clean} not in cards["team1"]["vert"]:
-                                        cards["team1"]["vert"].append({"nom": nom_clean})
-                                else:
-                                    if {"nom": nom_clean} not in cards["team2"]["vert"]:
-                                        cards["team2"]["vert"].append({"nom": nom_clean})
+                        nom = nom_cell.strip()
+                        carton_html = str(carton_cell)
+                        team = "team1" if i < total_rows // 2 else "team2"
+                        
+                        maillot_match = re.match(r'(\d+)', maillot_cell)
+                        maillot = int(maillot_match.group(1)) if maillot_match else None
+                        
+                        if 'CartonRouge' in carton_html or 'txt-orange' in carton_html:
+                            cards[team]["rouge"].append({"nom": nom, "numero_maillot": maillot})
+                        elif 'CartonJaune' in carton_html:
+                            cards[team]["jaune"].append({"nom": nom, "numero_maillot": maillot})
+                        
+                        if 'txt-vert' in carton_html or 'txt-vert' in str(cells[2]):
+                            if not any(c["nom"] == nom for c in cards[team]["vert"]):
+                                cards[team]["vert"].append({"nom": nom, "numero_maillot": maillot})
         
-        # Fallback: chercher les cartons verts via regex (plus fiable)
         vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
         verts = re.findall(vert_pattern, html_content)
-        
-        # Réinitialiser les verts pour utiliser le regex qui est plus fiable
         cards["team1"]["vert"] = []
         cards["team2"]["vert"] = []
-        
         verts_per_team = len(verts) // 2
         for i, vert_name in enumerate(verts):
-            if i < verts_per_team:
-                cards["team1"]["vert"].append({"nom": vert_name.strip()})
-            else:
-                cards["team2"]["vert"].append({"nom": vert_name.strip()})
+            team = "team1" if i < verts_per_team else "team2"
+            cards[team]["vert"].append({"nom": vert_name.strip()})
         
     except Exception as e:
-        # Si BeautifulSoup échoue, revenir à la méthode regex simple
-        print(f"BeautifulSoup parsing error: {str(e)}")
+        print(f"Error parsing cards: {str(e)}")
         vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
         verts = re.findall(vert_pattern, html_content)
+        cards["team1"]["vert"] = []
+        cards["team2"]["vert"] = []
         verts_per_team = len(verts) // 2
         for i, vert_name in enumerate(verts):
-            if i < verts_per_team:
-                cards["team1"]["vert"].append({"nom": vert_name.strip()})
-            else:
-                cards["team2"]["vert"].append({"nom": vert_name.strip()})
+            team = "team1" if i < verts_per_team else "team2"
+            cards[team]["vert"].append({"nom": vert_name.strip()})
     
     return cards
+
 
 
 @app.get("/api/v1/match/{renc_id}/buteurs", tags=["Feuille de Match"], summary="Buteurs du match")
