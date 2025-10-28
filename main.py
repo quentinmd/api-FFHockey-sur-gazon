@@ -1435,6 +1435,103 @@ def parse_cards_from_html(html_content):
 
 
 
+def get_match_info_from_api(renc_id):
+    """
+    Récupère les infos du match depuis l'API ListerRencontres.
+    Cherche dans tous les ManifId disponibles.
+    
+    Args:
+        renc_id: L'identifiant de la rencontre
+        
+    Returns:
+        Dict avec date, horaire, équipes et scores
+    """
+    match_info = {
+        "date": None,
+        "horaire": None,
+        "terrain": None,
+        "team1": {
+            "nom": None,
+            "buts": None
+        },
+        "team2": {
+            "nom": None,
+            "buts": None
+        }
+    }
+    
+    try:
+        import requests
+        
+        # List de ManifId à tester (U14 et autres)
+        manif_ids = ["4400", "4401", "4402", "4403", "4404", "4405"]  # U14 M, U14 F, etc.
+        
+        for manif_id in manif_ids:
+            try:
+                url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+                params = {
+                    "SaisonAnnee": "2026",
+                    "ManifId": manif_id
+                }
+                
+                response = requests.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get("ResponseCode") != "200":
+                    continue
+                
+                # Chercher le match avec le bon RencId
+                matches = data.get("Response", {}).get("RencontresArray", {})
+                if str(renc_id) in matches:
+                    match = matches[str(renc_id)]
+                    
+                    # Extraire les noms des équipes
+                    team1 = match.get("Equipe1", {})
+                    team2 = match.get("Equipe2", {})
+                    
+                    match_info["team1"]["nom"] = team1.get("EquipeNom", "").strip() or None
+                    match_info["team2"]["nom"] = team2.get("EquipeNom", "").strip() or None
+                    
+                    # Extraire les scores
+                    scores = match.get("Scores", {})
+                    score1 = scores.get("RencButsEqp1")
+                    score2 = scores.get("RencButsEqp2")
+                    
+                    if score1:
+                        try:
+                            match_info["team1"]["buts"] = int(score1)
+                        except:
+                            pass
+                    if score2:
+                        try:
+                            match_info["team2"]["buts"] = int(score2)
+                        except:
+                            pass
+                    
+                    # Extraire date et horaire
+                    date_str = match.get("RencDateDerog", "")  # Format: "2025-10-29 11:20:00"
+                    if date_str:
+                        try:
+                            from datetime import datetime
+                            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                            match_info["date"] = dt.strftime("%d/%m/%Y")
+                            match_info["horaire"] = dt.strftime("%H:%M")
+                        except:
+                            pass
+                    
+                    # Si on a au moins trouvé le match, on retourne
+                    return match_info
+                    
+            except:
+                continue
+        
+        return match_info
+        
+    except Exception as e:
+        return match_info
+
+
 def extract_match_info_from_html(html_content):
     """
     Extrait les informations du match depuis la feuille de match HTML.
@@ -1647,6 +1744,10 @@ async def get_match_officials(renc_id: str, manif_id: str = ""):
         # Extraire les infos du match
         html_content = sheet_data.get("Response", {}).get("RenduHTML", "")
         match_info = extract_match_info_from_html(html_content)
+        
+        # Si la feuille de match n'est pas disponible, récupérer depuis ListerRencontres
+        if not match_info["date"] and not match_info["team1"]["nom"]:
+            match_info = get_match_info_from_api(renc_id)
         
         # Ensuite récupérer les officiels
         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerOfficiels"
