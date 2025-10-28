@@ -1444,7 +1444,7 @@ def extract_match_info_from_html(html_content):
         html_content: Le contenu HTML de la feuille de match
         
     Returns:
-        Dict avec les infos du match
+        Dict avec les infos du match (None si HTML vide/inexistant)
     """
     match_info = {
         "date": None,
@@ -1459,6 +1459,10 @@ def extract_match_info_from_html(html_content):
             "buts": None
         }
     }
+    
+    # Si le HTML est vide ou None, retourner les valeurs par défaut (None)
+    if not html_content or html_content is None or not html_content.strip():
+        return match_info
     
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
