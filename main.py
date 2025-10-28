@@ -1253,7 +1253,7 @@ def parse_scorers_from_html(html_content):
 def parse_cards_from_html(html_content):
     """
     Parse les cartons depuis le HTML de la feuille de match.
-    Identifie les cartons verts, jaunes et rouges.
+    Identifie les cartons verts, jaunes et rouges avec les noms des joueurs.
     
     Args:
         html_content: Le contenu HTML de la feuille de match
@@ -1262,6 +1262,7 @@ def parse_cards_from_html(html_content):
         Dict avec les cartons organisés par type et équipe
     """
     import re
+    from bs4 import BeautifulSoup
     
     cards = {
         "team1": {
@@ -1276,35 +1277,85 @@ def parse_cards_from_html(html_content):
         }
     }
     
-    # Chercher les cartons verts: <strong class="txt-vert">NOM</strong>
-    # Ces cartons incluent des informations avec couleur verte
-    vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
-    verts = re.findall(vert_pattern, html_content)
-    
-    # Chercher les cartons jaunes et rouges dans les balises avec classes CSS
-    # Exemple: <span class="CartonJaune">...</span> ou <span class="CartonRouge">...</span>
-    jaune_pattern = r'<span[^>]*class="[^"]*CartonJaune[^"]*"[^>]*>'
-    rouge_pattern = r'<span[^>]*class="[^"]*CartonRouge[^"]*"[^>]*>'
-    
-    # Compter les occurrences pour répartir entre les équipes
-    jaunes_count = len(re.findall(jaune_pattern, html_content))
-    rouges_count = len(re.findall(rouge_pattern, html_content))
-    
-    # Diviser les cartons entre team1 et team2 (approximatif - on prend la première moitié pour team1)
-    verts_per_team = len(verts) // 2
-    
-    for i, vert_name in enumerate(verts):
-        if i < verts_per_team:
-            cards["team1"]["vert"].append({"nom": vert_name.strip()})
-        else:
-            cards["team2"]["vert"].append({"nom": vert_name.strip()})
-    
-    # Pour les jaunes et rouges, ajouter des placeholders
-    # (le parsing exact nécessiterait BeautifulSoup pour bien identifier les joueurs)
-    cards["team1"]["jaune_count"] = jaunes_count // 2 if jaunes_count > 0 else 0
-    cards["team2"]["jaune_count"] = jaunes_count - (jaunes_count // 2)
-    cards["team1"]["rouge_count"] = rouges_count // 2 if rouges_count > 0 else 0
-    cards["team2"]["rouge_count"] = rouges_count - (rouges_count // 2)
+    try:
+        # Parser avec BeautifulSoup
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Trouver la table des joueurs (class="orbe")
+        tables = soup.find_all('table', {'class': 'orbe'})
+        
+        if len(tables) >= 1:
+            # La table des joueurs avec les cartons
+            player_table = tables[0] if len(tables) > 1 else tables[0]
+            tbody = player_table.find('tbody')
+            
+            if tbody:
+                rows = tbody.find_all('tr')
+                
+                # Parcourir les lignes pour trouver les cartons
+                for i, row in enumerate(rows):
+                    cells = row.find_all('td')
+                    if len(cells) >= 4:
+                        # Format: [licence, maillot, nom, carton, ...]
+                        nom_cell = cells[2] if len(cells) > 2 else None
+                        carton_cell = cells[3] if len(cells) > 3 else None
+                        
+                        if nom_cell and carton_cell:
+                            nom = nom_cell.get_text(strip=True)
+                            carton_html = str(carton_cell)
+                            
+                            # Déterminer s'il y a un carton et son type
+                            if 'CartonJaune' in carton_html or 'txt-' in carton_html:
+                                # Vérifier le type exact
+                                if 'CartonRouge' in carton_html or 'txt-orange' in carton_html:
+                                    # Carton rouge
+                                    if i < len(rows) // 2:
+                                        cards["team1"]["rouge"].append({"nom": nom})
+                                    else:
+                                        cards["team2"]["rouge"].append({"nom": nom})
+                                elif 'CartonJaune' in carton_html:
+                                    # Carton jaune
+                                    if i < len(rows) // 2:
+                                        cards["team1"]["jaune"].append({"nom": nom})
+                                    else:
+                                        cards["team2"]["jaune"].append({"nom": nom})
+                            
+                            # Cartons verts (txt-vert dans le span du nom)
+                            if 'txt-vert' in carton_html or 'txt-vert' in str(nom_cell):
+                                nom_clean = nom.replace('CHRETIENNOT ETHEL', 'CHRETIENNOT ETHEL').strip()
+                                if i < len(rows) // 2:
+                                    if {"nom": nom_clean} not in cards["team1"]["vert"]:
+                                        cards["team1"]["vert"].append({"nom": nom_clean})
+                                else:
+                                    if {"nom": nom_clean} not in cards["team2"]["vert"]:
+                                        cards["team2"]["vert"].append({"nom": nom_clean})
+        
+        # Fallback: chercher les cartons verts via regex (plus fiable)
+        vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
+        verts = re.findall(vert_pattern, html_content)
+        
+        # Réinitialiser les verts pour utiliser le regex qui est plus fiable
+        cards["team1"]["vert"] = []
+        cards["team2"]["vert"] = []
+        
+        verts_per_team = len(verts) // 2
+        for i, vert_name in enumerate(verts):
+            if i < verts_per_team:
+                cards["team1"]["vert"].append({"nom": vert_name.strip()})
+            else:
+                cards["team2"]["vert"].append({"nom": vert_name.strip()})
+        
+    except Exception as e:
+        # Si BeautifulSoup échoue, revenir à la méthode regex simple
+        print(f"BeautifulSoup parsing error: {str(e)}")
+        vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
+        verts = re.findall(vert_pattern, html_content)
+        verts_per_team = len(verts) // 2
+        for i, vert_name in enumerate(verts):
+            if i < verts_per_team:
+                cards["team1"]["vert"].append({"nom": vert_name.strip()})
+            else:
+                cards["team2"]["vert"].append({"nom": vert_name.strip()})
     
     return cards
 

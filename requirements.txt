@@ -4,4 +4,6 @@ requests==2.31.0
 python-dotenv==1.0.0
 sendgrid==6.10.0
 apscheduler==3.10.4
+beautifulsoup4==4.12.2
+
 
