@@ -1210,13 +1210,16 @@ def parse_scorers_from_html(html_content):
     
     # Chercher les sections "Buteurs :" dans le HTML
     # Pattern: <strong>Buteurs : </strong>N°X (xY), N°Z (xY)
-    buteurs_pattern = r'<strong>Buteurs : <\/strong>(.*?)(?:<\/div>|$)'
+    buteurs_pattern = r'<strong>Buteurs : <\/strong>([^<]*)'
     buteurs_matches = re.findall(buteurs_pattern, html_content)
     
-    if len(buteurs_matches) >= 2:
+    # Filtrer les résultats vides et les &nbsp;
+    buteurs_valides = [b.strip() for b in buteurs_matches if b.strip() and '&nbsp;' not in b and b.strip() != '']
+    
+    if len(buteurs_valides) >= 2:
         # Première équipe
-        buteurs_team1 = buteurs_matches[0].strip()
-        if buteurs_team1 and buteurs_team1 != '&nbsp;':
+        buteurs_team1 = buteurs_valides[0].strip()
+        if buteurs_team1:
             # Parser: N°7 (x1), N°9 (x1), N°19 (x1)
             numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
             for num, count in numbers:
@@ -1226,14 +1229,23 @@ def parse_scorers_from_html(html_content):
                 })
         
         # Deuxième équipe
-        buteurs_team2 = buteurs_matches[1].strip()
-        if buteurs_team2 and buteurs_team2 != '&nbsp;':
+        buteurs_team2 = buteurs_valides[1].strip()
+        if buteurs_team2:
             numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team2)
             for num, count in numbers:
                 scorers["team2"].append({
                     "numero_maillot": int(num),
                     "buts": int(count)
                 })
+    elif len(buteurs_valides) == 1:
+        # Un seul match avec buteurs (première équipe)
+        buteurs_team1 = buteurs_valides[0].strip()
+        numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
+        for num, count in numbers:
+            scorers["team1"].append({
+                "numero_maillot": int(num),
+                "buts": int(count)
+            })
     
     return scorers
 
@@ -1264,30 +1276,35 @@ def parse_cards_from_html(html_content):
         }
     }
     
-    # Chercher les sections de cartons avec classes CSS
-    # Pattern pour les cartons avec noms: <strong class="txt-vert">NOM</strong> ou <span class="CartonJaune">...</span>
-    
-    # Cartons jaunes: <strong>...</strong> avec numéro de maillot avant
-    jaune_pattern = r'<td[^>]*>(\d+)<\/td><td[^>]*>(\d+)<\/td><td[^>]*>([^<]*)<\/td><td[^>]*><span[^>]*class="CartonJaune[^"]*"[^>]*>'
-    
-    # C'est complexe à parser en regex, utilisons BeautifulSoup si disponible
-    # Pour maintenant, on va chercher les classes CSS directement
-    
-    # Chercher .txt-vert (carton vert)
+    # Chercher les cartons verts: <strong class="txt-vert">NOM</strong>
+    # Ces cartons incluent des informations avec couleur verte
     vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
     verts = re.findall(vert_pattern, html_content)
     
-    # Chercher les cartons dans les deux sections (team1 et team2)
-    # On va chercher par position dans le HTML - première moitié = team1, seconde = team2
-    html_midpoint = len(html_content) // 2
+    # Chercher les cartons jaunes et rouges dans les balises avec classes CSS
+    # Exemple: <span class="CartonJaune">...</span> ou <span class="CartonRouge">...</span>
+    jaune_pattern = r'<span[^>]*class="[^"]*CartonJaune[^"]*"[^>]*>'
+    rouge_pattern = r'<span[^>]*class="[^"]*CartonRouge[^"]*"[^>]*>'
     
-    # Pour les cartons verts dans team1 et team2
-    for vert_name in verts:
-        pos = html_content.find(f'<strong class="txt-vert">{vert_name}</strong>')
-        if pos < html_midpoint:
+    # Compter les occurrences pour répartir entre les équipes
+    jaunes_count = len(re.findall(jaune_pattern, html_content))
+    rouges_count = len(re.findall(rouge_pattern, html_content))
+    
+    # Diviser les cartons entre team1 et team2 (approximatif - on prend la première moitié pour team1)
+    verts_per_team = len(verts) // 2
+    
+    for i, vert_name in enumerate(verts):
+        if i < verts_per_team:
             cards["team1"]["vert"].append({"nom": vert_name.strip()})
         else:
             cards["team2"]["vert"].append({"nom": vert_name.strip()})
+    
+    # Pour les jaunes et rouges, ajouter des placeholders
+    # (le parsing exact nécessiterait BeautifulSoup pour bien identifier les joueurs)
+    cards["team1"]["jaune_count"] = jaunes_count // 2 if jaunes_count > 0 else 0
+    cards["team2"]["jaune_count"] = jaunes_count - (jaunes_count // 2)
+    cards["team1"]["rouge_count"] = rouges_count // 2 if rouges_count > 0 else 0
+    cards["team2"]["rouge_count"] = rouges_count - (rouges_count // 2)
     
     return cards
 
