@@ -1275,6 +1275,7 @@ def parse_scorers_from_html(html_content):
     """
     Parse les buteurs depuis le HTML de la feuille de match.
     Extrait les numéros de maillot, noms complets et compte les buts marqués.
+    Importante: Match les buteurs à chaque équipe par l'ordre dans le HTML sans filtrer.
     
     Args:
         html_content: Le contenu HTML de la feuille de match
@@ -1299,17 +1300,16 @@ def parse_scorers_from_html(html_content):
         scorers["team1"]["nom_equipe"] = players_data["team1"]["nom"]
         scorers["team2"]["nom_equipe"] = players_data["team2"]["nom"]
         
-        # Chercher les sections "Buteurs :"
+        # Chercher les sections "Buteurs :" SANS FILTRER (garder l'ordre original)
         buteurs_pattern = r'<strong>Buteurs : <\/strong>([^<]*)'
         buteurs_matches = re.findall(buteurs_pattern, html_content)
         
-        # Filtrer les résultats vides
-        buteurs_valides = [b.strip() for b in buteurs_matches if b.strip() and '&nbsp;' not in b and b.strip() != '']
-        
-        if len(buteurs_valides) >= 2:
-            # Première équipe
-            buteurs_team1 = buteurs_valides[0].strip()
-            if buteurs_team1:
+        # IMPORTANT: Ne pas filtrer! Garder l'ordre original du HTML
+        # Index 0 = Team1, Index 1 = Team2 (même si vides)
+        if len(buteurs_matches) >= 2:
+            # Première équipe (index 0)
+            buteurs_team1 = buteurs_matches[0].strip()
+            if buteurs_team1 and '&nbsp;' not in buteurs_team1:
                 numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
                 for num, count in numbers:
                     num = int(num)
@@ -1320,9 +1320,9 @@ def parse_scorers_from_html(html_content):
                         "buts": int(count)
                     })
             
-            # Deuxième équipe
-            buteurs_team2 = buteurs_valides[1].strip()
-            if buteurs_team2:
+            # Deuxième équipe (index 1)
+            buteurs_team2 = buteurs_matches[1].strip()
+            if buteurs_team2 and '&nbsp;' not in buteurs_team2:
                 numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team2)
                 for num, count in numbers:
                     num = int(num)
@@ -1332,17 +1332,18 @@ def parse_scorers_from_html(html_content):
                         "nom": nom_joueur,
                         "buts": int(count)
                     })
-        elif len(buteurs_valides) == 1:
-            buteurs_team1 = buteurs_valides[0].strip()
-            numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
-            for num, count in numbers:
-                num = int(num)
-                nom_joueur = players_data["team1"]["joueurs"].get(num, f"Joueur N°{num}")
-                scorers["team1"]["buteurs"].append({
-                    "numero_maillot": num,
-                    "nom": nom_joueur,
-                    "buts": int(count)
-                })
+        elif len(buteurs_matches) == 1:
+            buteurs_team1 = buteurs_matches[0].strip()
+            if buteurs_team1 and '&nbsp;' not in buteurs_team1:
+                numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
+                for num, count in numbers:
+                    num = int(num)
+                    nom_joueur = players_data["team1"]["joueurs"].get(num, f"Joueur N°{num}")
+                    scorers["team1"]["buteurs"].append({
+                        "numero_maillot": num,
+                        "nom": nom_joueur,
+                        "buts": int(count)
+                    })
     
     except Exception as e:
         print(f"Error parsing scorers: {str(e)}")
@@ -1540,6 +1541,7 @@ async def get_match_cards(renc_id: str):
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 
+@app.get("/api/v1/match/{renc_id}/officiels", tags=["Feuille de Match"], summary="Officiels du match")
 async def get_match_officials(renc_id: str, manif_id: str = ""):
     """
     Récupère les officiels (arbitres, délégués, etc.) pour un match spécifique.
