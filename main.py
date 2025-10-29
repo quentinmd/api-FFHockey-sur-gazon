@@ -303,6 +303,7 @@ def send_match_finished_email(subscribers, match_data, competition_name):
 def check_and_notify_finished_matches(matches_data, competition_prefix, competition_name):
     """
     Fonction générique pour vérifier les matchs terminés et envoyer des emails.
+    Évite les doublons en gardant trace des matchs déjà notifiés.
     
     Args:
         matches_data: Liste des matchs
@@ -314,7 +315,15 @@ def check_and_notify_finished_matches(matches_data, competition_prefix, competit
     for match in matches_data:
         if match.get("statut") == "FINISHED":
             # Créer un identifiant unique pour le match
-            match_id = f"{competition_prefix}-{match.get('equipe_domicile')}-{match.get('equipe_exterieur')}-{match.get('date')}"
+            # Préférer RencId si disponible (plus fiable), sinon utiliser les noms d'équipes et la date
+            if match.get("rencId"):
+                match_id = f"{competition_prefix}-renc-{match.get('rencId')}"
+            else:
+                # Normaliser les noms pour éviter les doublons dus aux caractères spéciaux
+                home_team = str(match.get('equipe_domicile', '')).lower().strip()
+                away_team = str(match.get('equipe_exterieur', '')).lower().strip()
+                match_date = str(match.get('date', '')).lower().strip()
+                match_id = f"{competition_prefix}-{home_team}-{away_team}-{match_date}"
             
             # Si le match n'a pas encore été notifié
             if match_id not in notified_matches:
@@ -324,6 +333,7 @@ def check_and_notify_finished_matches(matches_data, competition_prefix, competit
                 # Marquer comme notifié
                 notified_matches.add(match_id)
                 save_notified_matches(notified_matches)
+                print(f"✉️ [Notification] Match notifié: {match_id}")
 
 
 @app.get("/api/v1/elite-hommes/classement", tags=["Classement"])
@@ -364,8 +374,6 @@ async def endpoint_matchs():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    global notified_matches
-    
     matches_data = get_matches()
     
     if not matches_data:
@@ -374,20 +382,8 @@ async def endpoint_matchs():
             detail="La source de données de la FFH est actuellement indisponible."
         )
     
-    # Vérifier les matchs nouvellement terminés
-    for match in matches_data:
-        if match.get("statut") == "FINISHED":
-            # Créer un identifiant unique pour le match
-            match_id = f"elite-hommes-{match.get('equipe_domicile')}-{match.get('equipe_exterieur')}-{match.get('date')}"
-            
-            # Si le match n'a pas encore été notifié
-            if match_id not in notified_matches:
-                # Envoyer les emails
-                send_match_finished_email(email_subscribers, match, "Elite Hommes")
-                
-                # Marquer comme notifié
-                notified_matches.add(match_id)
-                save_notified_matches(notified_matches)
+    # Vérifier les matchs nouvellement terminés et envoyer notifications
+    check_and_notify_finished_matches(matches_data, "elite-hommes", "Elite Hommes")
     
     return {
         "success": True,
