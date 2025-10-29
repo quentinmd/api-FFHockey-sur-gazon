@@ -187,6 +187,31 @@ def format_match_data(match, include_renc_id=True):
     
     return formatted
 
+def create_placeholder_match(description, date, horaire, lieu=""):
+    """
+    Crée une rencontre placeholder avec infos manuelles.
+    
+    Args:
+        description: Description du match (ex: "Île-de-France vs La Réunion")
+        date: Date du match (ex: "2025-10-29")
+        horaire: Horaire du match (ex: "09:00")
+        lieu: Lieu du match (optionnel)
+        
+    Returns:
+        Dictionnaire formaté comme un match
+    """
+    return {
+        "equipe_domicile": "TBD",
+        "equipe_exterieur": "TBD",
+        "score_domicile": "",
+        "score_exterieur": "",
+        "date": f"{date} {horaire}:00",
+        "statut": "SCHEDULED",
+        "description": description,
+        "lieu": lieu,
+        "rencId": ""
+    }
+
 def send_match_finished_email(subscribers, match_data, competition_name):
     """
     Envoie un email à tous les abonnés quand un match se termine via SendGrid.
@@ -932,6 +957,7 @@ async def get_interligues_u14_garcons_poules(phase_id: str):
     """
     Récupère les poules (matchups) pour une phase spécifique des Interligues U14 Garçons.
     Les rencontres s'ajoutent automatiquement dès que les équipes sont désignées.
+    Inclut les données manuelles en attente de confirmation FFHockey.
     
     Args:
         phase_id: L'identifiant de la phase (ex: 7174 pour 1/2 finales)
@@ -961,6 +987,41 @@ async def get_interligues_u14_garcons_poules(phase_id: str):
         poules_raw = poules_data.get("Response", {}).get("PoulesArray", {})
         poules_formatted = []
         
+        # Données manuelles pour les demi-finales du 29/10 (en attente de confirmation)
+        matches_demi_finales_29oct = [
+            ("11694", "Demi-Finale 1A vs 2B", [
+                create_placeholder_match("Île-de-France vs La Réunion", "2025-10-29", "09:00"),
+            ]),
+            ("11695", "Demi-Finale 1B vs 2A", [
+                create_placeholder_match("Hauts-de-France vs Normandie", "2025-10-29", "10:10"),
+            ]),
+            ("11696", "Demi-Finale 3A vs 4B", [
+                create_placeholder_match("Nouvelle Aquitaine vs Auvergne-Rhône-Alpes", "2025-10-29", "11:20"),
+            ]),
+            ("11697", "Demi-Finale 4A vs 3B", [
+                create_placeholder_match("Pays de la Loire vs Occitanie", "2025-10-29", "12:30"),
+            ]),
+        ]
+        
+        # Données manuelles pour les matchs du 30/10 (finales et classements)
+        matches_finales_30oct = [
+            ("11702", "Match pour la 7e/8e place", [
+                create_placeholder_match("Classement 7e/8e place", "2025-10-30", "09:30", "Asnières"),
+            ]),
+            ("11703", "Match pour la 5e/6e place", [
+                create_placeholder_match("Classement 5e/6e place", "2025-10-30", "09:00", "La Boulie"),
+            ]),
+            ("11704", "Match pour la médaille de Bronze", [
+                create_placeholder_match("Match Bronze", "2025-10-30", "11:20", "La Boulie"),
+            ]),
+            ("11705", "Finale du Championnat", [
+                create_placeholder_match("Finale", "2025-10-30", "13:40", "La Boulie"),
+            ]),
+        ]
+        
+        # Mapper les poules avec les matchs manuels
+        poules_mapping = {poule_id: (libelle, matches) for poule_id, libelle, matches in matches_demi_finales_29oct + matches_finales_30oct}
+        
         # Pour chaque poule, récupérer les rencontres
         for poule_id, poule in poules_raw.items():
             poule_info = {
@@ -988,16 +1049,25 @@ async def get_interligues_u14_garcons_poules(phase_id: str):
                     for match in rencontres_raw.values():
                         formatted_match = format_match_data(match, include_renc_id=True)
                         poule_info["rencontres"].append(formatted_match)
+                
+                # Si pas de rencontres de FFHockey, ajouter les données manuelles si disponibles
+                if not poule_info["rencontres"] and poule_id in poules_mapping:
+                    poule_info["rencontres"] = poules_mapping[poule_id][1]
+                    poule_info["source"] = "manual"  # Indiquer que c'est une donnée manuelle
+                    
             except:
-                # Si pas de rencontres, c'est normal (équipes pas encore désignées)
-                pass
+                # Si pas de rencontres FFHockey, ajouter les données manuelles
+                if poule_id in poules_mapping:
+                    poule_info["rencontres"] = poules_mapping[poule_id][1]
+                    poule_info["source"] = "manual"
             
             poules_formatted.append(poule_info)
         
         return {
             "success": True,
             "data": poules_formatted,
-            "count": len(poules_formatted)
+            "count": len(poules_formatted),
+            "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des poules: {str(e)}")
@@ -1053,6 +1123,7 @@ async def get_interligues_u14_filles_poules(phase_id: str):
     """
     Récupère les poules (matchups) pour une phase spécifique des Interligues U14 Filles.
     Les rencontres s'ajoutent automatiquement dès que les équipes sont désignées.
+    Inclut les données manuelles en attente de confirmation FFHockey.
     
     Args:
         phase_id: L'identifiant de la phase (ex: 7182 pour finale)
@@ -1082,6 +1153,22 @@ async def get_interligues_u14_filles_poules(phase_id: str):
         poules_raw = poules_data.get("Response", {}).get("PoulesArray", {})
         poules_formatted = []
         
+        # Données manuelles pour les finales du 30/10 (en attente de confirmation)
+        matches_finales_30oct = [
+            ("11702", "Places 1 et 2", [
+                create_placeholder_match("Finale du Championnat", "2025-10-30", "12:30", "La Boulie"),
+            ]),
+            ("11703", "Places 3 et 4", [
+                create_placeholder_match("Match pour la médaille de bronze", "2025-10-30", "10:10", "La Boulie"),
+            ]),
+            ("11704", "Places 5 et 6", [
+                create_placeholder_match("Classement 5e/6e place", "2025-10-30", "10:40", "Asnières"),
+            ]),
+        ]
+        
+        # Mapper les poules avec les matchs manuels
+        poules_mapping = {poule_id: (libelle, matches) for poule_id, libelle, matches in matches_finales_30oct}
+        
         # Pour chaque poule, récupérer les rencontres
         for poule_id, poule in poules_raw.items():
             poule_info = {
@@ -1109,16 +1196,25 @@ async def get_interligues_u14_filles_poules(phase_id: str):
                     for match in rencontres_raw.values():
                         formatted_match = format_match_data(match, include_renc_id=True)
                         poule_info["rencontres"].append(formatted_match)
+                
+                # Si pas de rencontres de FFHockey, ajouter les données manuelles si disponibles
+                if not poule_info["rencontres"] and poule_id in poules_mapping:
+                    poule_info["rencontres"] = poules_mapping[poule_id][1]
+                    poule_info["source"] = "manual"  # Indiquer que c'est une donnée manuelle
+                    
             except:
-                # Si pas de rencontres, c'est normal (équipes pas encore désignées)
-                pass
+                # Si pas de rencontres FFHockey, ajouter les données manuelles
+                if poule_id in poules_mapping:
+                    poule_info["rencontres"] = poules_mapping[poule_id][1]
+                    poule_info["source"] = "manual"
             
             poules_formatted.append(poule_info)
         
         return {
             "success": True,
             "data": poules_formatted,
-            "count": len(poules_formatted)
+            "count": len(poules_formatted),
+            "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des poules U14 Filles: {str(e)}")
