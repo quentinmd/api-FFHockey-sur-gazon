@@ -882,6 +882,127 @@ async def get_matchs_interligues_u14_garcons_poule_b():
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons Poule B: {str(e)}")
 
 
+@app.get("/api/v1/interligues-u14-garcons/phases", tags=["Interligues U14"])
+async def get_interligues_u14_garcons_phases():
+    """
+    Récupère les phases (groupes, 1/2 finales, finales) des Interligues U14 Garçons.
+    Permet de suivre l'évolution de la compétition.
+    """
+    try:
+        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPhases"
+        params = {
+            "SaisonAnnee": "2026",
+            "ManifId": "4400"  # U14 Garçons
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get("ResponseCode") == "200" and "Response" in data:
+            phases_raw = data["Response"].get("PhasesArray", {})
+            phases_formatted = []
+            
+            for phase_id, phase in phases_raw.items():
+                phases_formatted.append({
+                    "phase_id": phase.get("PhaseId"),
+                    "libelle": phase.get("PhaseLib"),
+                    "ordre": int(phase.get("PhaseOrdre", 0)),
+                    "date_debut": phase.get("PhaseDateDebut"),
+                    "date_fin": phase.get("PhaseDateFin"),
+                    "type": phase.get("PhaseRencType")
+                })
+            
+            # Trier par ordre
+            phases_formatted.sort(key=lambda x: x["ordre"])
+            
+            return {
+                "success": True,
+                "data": phases_formatted,
+                "count": len(phases_formatted)
+            }
+        else:
+            return {"success": False, "data": [], "count": 0}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des phases: {str(e)}")
+
+
+@app.get("/api/v1/interligues-u14-garcons/poules/{phase_id}", tags=["Interligues U14"])
+async def get_interligues_u14_garcons_poules(phase_id: str):
+    """
+    Récupère les poules (matchups) pour une phase spécifique des Interligues U14 Garçons.
+    Les rencontres s'ajoutent automatiquement dès que les équipes sont désignées.
+    
+    Args:
+        phase_id: L'identifiant de la phase (ex: 7174 pour 1/2 finales)
+        
+    Returns:
+        Liste des poules avec leurs rencontres
+        
+    Example:
+        /api/v1/interligues-u14-garcons/poules/7174
+    """
+    try:
+        # D'abord récupérer les poules
+        poules_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPoules"
+        poules_params = {
+            "SaisonAnnee": "2026",
+            "ManifId": "4400",  # U14 Garçons
+            "PhaseId": phase_id
+        }
+        
+        poules_response = requests.get(poules_url, params=poules_params, timeout=10)
+        poules_response.raise_for_status()
+        poules_data = poules_response.json()
+        
+        if poules_data.get("ResponseCode") != "200":
+            return {"success": False, "data": [], "count": 0}
+        
+        poules_raw = poules_data.get("Response", {}).get("PoulesArray", {})
+        poules_formatted = []
+        
+        # Pour chaque poule, récupérer les rencontres
+        for poule_id, poule in poules_raw.items():
+            poule_info = {
+                "poule_id": poule.get("PouleId"),
+                "libelle": poule.get("PouleLib"),
+                "rencontres": []
+            }
+            
+            # Récupérer les rencontres pour cette poule
+            try:
+                renc_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+                renc_params = {
+                    "SaisonAnnee": "2026",
+                    "ManifId": "4400",
+                    "PouleId": poule_id
+                }
+                
+                renc_response = requests.get(renc_url, params=renc_params, timeout=10)
+                renc_response.raise_for_status()
+                renc_data = renc_response.json()
+                
+                if renc_data.get("ResponseCode") == "200":
+                    rencontres_raw = renc_data.get("Response", {}).get("RencontresArray", {})
+                    
+                    for match in rencontres_raw.values():
+                        formatted_match = format_match_data(match, include_renc_id=True)
+                        poule_info["rencontres"].append(formatted_match)
+            except:
+                # Si pas de rencontres, c'est normal (équipes pas encore désignées)
+                pass
+            
+            poules_formatted.append(poule_info)
+        
+        return {
+            "success": True,
+            "data": poules_formatted,
+            "count": len(poules_formatted)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des poules: {str(e)}")
+
+
 # ============================================
 # ENDPOINTS EMAIL NOTIFICATIONS
 # ============================================
