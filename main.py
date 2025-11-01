@@ -572,6 +572,65 @@ async def endpoint_matchs_femmes():
     }
 
 
+@app.get("/api/v1/salle/elite-femmes/classement", tags=["Classement Salle"], summary="Classement Elite Femmes Salle")
+async def endpoint_classement_elite_femmes_salle():
+    """
+    Récupère le classement de l'élite femmes en salle.
+    Les données sont actuellement des valeurs par défaut (0 point) en attente des résultats des tournois.
+    
+    Équipes du championnat:
+    - HC Grenoble, IH Lambersart, AS Villeurbanne EL, PHC Marcq en Baroeul
+    - Cambrai HC, Blanc Mesnil SH, Carquefou HC, La Baule OHC
+    - CA Montrouge 92, Villa Primrose
+    
+    Returns:
+        Liste des équipes avec leurs statistiques (0 point pour l'instant)
+    """
+    try:
+        # Équipes du championnat Elite Femmes Salle
+        teams = [
+            "HC Grenoble",
+            "IH Lambersart",
+            "AS Villeurbanne EL",
+            "PHC Marcq en Baroeul",
+            "Cambrai HC",
+            "Blanc Mesnil SH",
+            "Carquefou HC",
+            "La Baule OHC",
+            "CA Montrouge 92",
+            "Villa Primrose"
+        ]
+        
+        # Initialiser le classement avec 0 point
+        classement = []
+        for rank, team in enumerate(teams, 1):
+            classement.append({
+                "rang": rank,
+                "equipe": team,
+                "points": 0,
+                "matchs_joues": 0,
+                "victoires": 0,
+                "nuls": 0,
+                "defaites": 0,
+                "buts_pour": 0,
+                "buts_contre": 0,
+                "difference_buts": 0,
+                "statut": "avant tournoi"
+            })
+        
+        return {
+            "success": True,
+            "data": classement,
+            "count": len(classement),
+            "discipline": "salle",
+            "categorie": "Elite Femmes",
+            "note": "Données initiales (0 point). Seront mises à jour après les tournois de décembre et janvier."
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération du classement Elite Femmes Salle: {str(e)}")
+
+
 @app.get("/api/v1/salle/elite-femmes/matchs", tags=["Matchs Salle"], summary="Matchs Elite Femmes Salle")
 async def endpoint_matchs_elite_femmes_salle():
     """
