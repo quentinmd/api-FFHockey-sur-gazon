@@ -6,11 +6,15 @@ Endpoints pour accéder aux données de la FFH
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
 import json
 import os
 import re
 import hashlib
+import time
+from functools import wraps
+from cachetools import TTLCache
 from dotenv import load_dotenv
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -91,9 +95,63 @@ app.add_middleware(
     allow_headers=["*"],  # Accepte tous les headers
 )
 
+# Ajouter GZip compression pour les réponses > 500 bytes
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
 # ============================================
-# SCHEDULER - NOTIFICATIONS AUTOMATIQUES
+# SYSTÈME DE CACHE
 # ============================================
+
+# Cache pour les données dynamiques (classements, matchs) - 5 minutes TTL
+cache_dynamic = TTLCache(maxsize=100, ttl=300)
+
+# Cache pour les données statiques - 1 heure TTL
+cache_static = TTLCache(maxsize=50, ttl=3600)
+
+def cache_with_ttl(cache_store, ttl=None):
+    """
+    Décorateur pour cacher les résultats avec TTL
+    
+    Args:
+        cache_store: Le cache à utiliser (cache_dynamic ou cache_static)
+        ttl: Optionnel, sinon utilise le TTL du cache
+    """
+    def decorator(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            # Créer une clé de cache basée sur le nom de la fonction et les arguments
+            cache_key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
+            
+            # Vérifier si le résultat est en cache
+            if cache_key in cache_store:
+                return cache_store[cache_key]
+            
+            # Appeler la fonction et mettre en cache
+            result = await func(*args, **kwargs)
+            cache_store[cache_key] = result
+            return result
+        
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            # Créer une clé de cache basée sur le nom de la fonction et les arguments
+            cache_key = f"{func.__name__}:{str(args)}:{str(kwargs)}"
+            
+            # Vérifier si le résultat est en cache
+            if cache_key in cache_store:
+                return cache_store[cache_key]
+            
+            # Appeler la fonction et mettre en cache
+            result = func(*args, **kwargs)
+            cache_store[cache_key] = result
+            return result
+        
+        # Retourner le wrapper approprié selon que la fonction est async
+        if hasattr(func, '__awaitable__'):
+            return async_wrapper
+        return sync_wrapper
+    return decorator
+
+
 
 scheduler = BackgroundScheduler()
 
@@ -538,7 +596,84 @@ def generate_renc_id(equipe_domicile, equipe_exterieur, date, seed=0):
     return str(renc_id)
 
 
-@app.get("/api/v1/elite-hommes/classement", tags=["Elite Hommes"])
+# ============================================
+# WRAPPERS DE CACHE POUR APPELS SCRAPER
+# ============================================
+
+def get_ranking_cached():
+    """Wrapper avec cache pour get_ranking()"""
+    cache_key = "ranking_elite_hommes"
+    if cache_key not in cache_dynamic:
+        result = get_ranking()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+def get_matches_cached():
+    """Wrapper avec cache pour get_matches()"""
+    cache_key = "matches_elite_hommes"
+    if cache_key not in cache_dynamic:
+        result = get_matches()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+def get_ranking_femmes_cached():
+    """Wrapper avec cache pour get_ranking_femmes()"""
+    cache_key = "ranking_elite_femmes"
+    if cache_key not in cache_dynamic:
+        result = get_ranking_femmes()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+def get_matches_femmes_cached():
+    """Wrapper avec cache pour get_matches_femmes()"""
+    cache_key = "matches_elite_femmes"
+    if cache_key not in cache_dynamic:
+        result = get_matches_femmes()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+def get_classement_carquefou_1sh_cached():
+    """Wrapper avec cache pour get_classement_carquefou_1sh()"""
+    cache_key = "classement_carquefou_1sh"
+    if cache_key not in cache_dynamic:
+        result = get_classement_carquefou_1sh()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+def get_matchs_carquefou_1sh_cached():
+    """Wrapper avec cache pour get_matchs_carquefou_1sh()"""
+    cache_key = "matchs_carquefou_1sh"
+    if cache_key not in cache_dynamic:
+        result = get_matchs_carquefou_1sh()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+def get_classement_carquefou_2sh_cached():
+    """Wrapper avec cache pour get_classement_carquefou_2sh()"""
+    cache_key = "classement_carquefou_2sh"
+    if cache_key not in cache_dynamic:
+        result = get_classement_carquefou_2sh()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+def get_matchs_carquefou_2sh_cached():
+    """Wrapper avec cache pour get_matchs_carquefou_2sh()"""
+    cache_key = "matchs_carquefou_2sh"
+    if cache_key not in cache_dynamic:
+        result = get_matchs_carquefou_2sh()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+def get_matchs_carquefou_sd_cached():
+    """Wrapper avec cache pour get_matchs_carquefou_sd()"""
+    cache_key = "matchs_carquefou_sd"
+    if cache_key not in cache_dynamic:
+        result = get_matchs_carquefou_sd()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+
+
 async def endpoint_classement():
     """
     Récupère le classement actuel de l'élite hommes.
@@ -549,7 +684,7 @@ async def endpoint_classement():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    ranking_data = get_ranking()
+    ranking_data = get_ranking_cached()
     
     if not ranking_data:
         raise HTTPException(
@@ -576,7 +711,7 @@ async def endpoint_matchs():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    matches_data = get_matches()
+    matches_data = get_matches_cached()
     
     if not matches_data:
         raise HTTPException(
@@ -605,7 +740,7 @@ async def endpoint_classement_femmes():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    ranking_data = get_ranking_femmes()
+    ranking_data = get_ranking_femmes_cached()
     
     if not ranking_data:
         raise HTTPException(
@@ -631,7 +766,7 @@ async def endpoint_matchs_femmes():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    matches_data = get_matches_femmes()
+    matches_data = get_matches_femmes_cached()
     
     if not matches_data:
         raise HTTPException(
@@ -1113,7 +1248,7 @@ async def endpoint_matchs_carquefou_sd():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    matches_data = get_matchs_carquefou_sd()
+    matches_data = get_matchs_carquefou_sd_cached()
     
     if not matches_data:
         raise HTTPException(
@@ -1142,7 +1277,7 @@ async def endpoint_classement_carquefou_1sh():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    ranking_data = get_classement_carquefou_1sh()
+    ranking_data = get_classement_carquefou_1sh_cached()
     
     if not ranking_data:
         raise HTTPException(
@@ -1168,7 +1303,7 @@ async def endpoint_matchs_carquefou_1sh():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    matches_data = get_matchs_carquefou_1sh()
+    matches_data = get_matchs_carquefou_1sh_cached()
     
     if not matches_data:
         raise HTTPException(
@@ -1194,7 +1329,7 @@ async def endpoint_classement_carquefou_2sh():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    ranking_data = get_classement_carquefou_2sh()
+    ranking_data = get_classement_carquefou_2sh_cached()
     
     if not ranking_data:
         raise HTTPException(
@@ -1220,7 +1355,7 @@ async def endpoint_matchs_carquefou_2sh():
     Raises:
         HTTPException: Si la source de données est indisponible (code 503).
     """
-    matches_data = get_matchs_carquefou_2sh()
+    matches_data = get_matchs_carquefou_2sh_cached()
     
     if not matches_data:
         raise HTTPException(
