@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import json
 import os
 import re
+import hashlib
 from dotenv import load_dotenv
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -510,6 +511,33 @@ def check_and_notify_finished_matches(matches_data, competition_prefix, competit
                 print(f"✉️ [Notification] Match notifié: {match_id}")
 
 
+def generate_renc_id(equipe_domicile, equipe_exterieur, date, seed=0):
+    """
+    Génère un ID de rencontre basé sur un hash des données du match.
+    
+    Args:
+        equipe_domicile: Nom de l'équipe à domicile
+        equipe_exterieur: Nom de l'équipe à l'extérieur
+        date: Date du match (format YYYY-MM-DD HH:MM:SS)
+        seed: Valeur de seed pour varier les IDs (par défaut 0)
+        
+    Returns:
+        String ID numérique (entre 100000 et 999999)
+    """
+    # Créer une chaîne unique avec les données du match
+    match_str = f"{equipe_domicile}|{equipe_exterieur}|{date}|{seed}".lower().strip()
+    
+    # Générer un hash MD5
+    hash_obj = hashlib.md5(match_str.encode())
+    hash_hex = hash_obj.hexdigest()
+    
+    # Convertir en entier et limiter à 6 chiffres (100000-999999)
+    hash_int = int(hash_hex, 16)
+    renc_id = 100000 + (hash_int % 900000)
+    
+    return str(renc_id)
+
+
 @app.get("/api/v1/elite-hommes/classement", tags=["Elite Hommes"])
 async def endpoint_classement():
     """
@@ -703,6 +731,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("HC Grenoble", "IH Lambersart", "2025-12-13 13:00:00", 1),
                 "source": "manual"
             },
             {
@@ -714,6 +743,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("AS Villeurbanne EL", "PHC Marcq en Baroeul", "2025-12-13 14:05:00", 2),
                 "source": "manual"
             },
             {
@@ -725,6 +755,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("Cambrai HC", "Blanc Mesnil SH", "2025-12-13 15:10:00", 3),
                 "source": "manual"
             },
             {
@@ -736,6 +767,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("Carquefou HC", "La Baule OHC", "2025-12-13 16:15:00", 4),
                 "source": "manual"
             },
             {
@@ -747,6 +779,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("IH Lambersart", "CA Montrouge 92", "2025-12-13 17:20:00", 5),
                 "source": "manual"
             },
             {
@@ -758,6 +791,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("PHC Marcq en Baroeul", "HC Grenoble", "2025-12-13 18:25:00", 6),
                 "source": "manual"
             },
             {
@@ -769,6 +803,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("AS Villeurbanne EL", "Villa Primrose", "2025-12-13 19:30:00", 7),
                 "source": "manual"
             },
             {
@@ -780,6 +815,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("Cambrai HC", "La Baule OHC", "2025-12-13 20:35:00", 8),
                 "source": "manual"
             },
             # Dimanche 14 décembre (Villeurbanne)
@@ -792,6 +828,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("Blanc Mesnil SH", "Carquefou HC", "2025-12-14 09:00:00", 9),
                 "source": "manual"
             },
             {
@@ -803,6 +840,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("La Baule OHC", "Villa Primrose", "2025-12-14 10:05:00", 10),
                 "source": "manual"
             },
             {
@@ -814,6 +852,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("PHC Marcq en Baroeul", "IH Lambersart", "2025-12-14 11:10:00", 11),
                 "source": "manual"
             },
             {
@@ -825,6 +864,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("AS Villeurbanne EL", "CA Montrouge 92", "2025-12-14 12:15:00", 12),
                 "source": "manual"
             },
             {
@@ -836,6 +876,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("Carquefou HC", "Cambrai HC", "2025-12-14 13:20:00", 13),
                 "source": "manual"
             },
             {
@@ -847,6 +888,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("Blanc Mesnil SH", "Villa Primrose", "2025-12-14 14:25:00", 14),
                 "source": "manual"
             },
             {
@@ -858,6 +900,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "13/14 décembre - Villeurbanne",
                 "lieu": "Villeurbanne",
+                "rencId": generate_renc_id("HC Grenoble", "CA Montrouge 92", "2025-12-14 15:30:00", 15),
                 "source": "manual"
             },
             
@@ -871,6 +914,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("La Baule OHC", "PHC Marcq en Baroeul", "2026-01-03 13:00:00", 16),
                 "source": "manual"
             },
             {
@@ -882,6 +926,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("Carquefou HC", "CA Montrouge 92", "2026-01-03 14:05:00", 17),
                 "source": "manual"
             },
             {
@@ -893,6 +938,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("HC Grenoble", "Cambrai HC", "2026-01-03 15:10:00", 18),
                 "source": "manual"
             },
             {
@@ -904,6 +950,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("Blanc Mesnil SH", "PHC Marcq en Baroeul", "2026-01-03 16:15:00", 19),
                 "source": "manual"
             },
             {
@@ -915,6 +962,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("IH Lambersart", "AS Villeurbanne EL", "2026-01-03 17:20:00", 20),
                 "source": "manual"
             },
             {
@@ -926,6 +974,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("Villa Primrose", "Cambrai HC", "2026-01-03 18:25:00", 21),
                 "source": "manual"
             },
             {
@@ -937,6 +986,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("Carquefou HC", "HC Grenoble", "2026-01-03 19:30:00", 22),
                 "source": "manual"
             },
             {
@@ -948,6 +998,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("AS Villeurbanne EL", "Blanc Mesnil SH", "2026-01-03 20:35:00", 23),
                 "source": "manual"
             },
             # Dimanche 4 janvier
@@ -960,6 +1011,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("Villa Primrose", "IH Lambersart", "2026-01-04 09:00:00", 24),
                 "source": "manual"
             },
             {
@@ -971,6 +1023,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("Cambrai HC", "CA Montrouge 92", "2026-01-04 10:05:00", 25),
                 "source": "manual"
             },
             {
@@ -982,6 +1035,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("HC Grenoble", "AS Villeurbanne EL", "2026-01-04 11:10:00", 26),
                 "source": "manual"
             },
             {
@@ -993,6 +1047,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("IH Lambersart", "La Baule OHC", "2026-01-04 12:15:00", 27),
                 "source": "manual"
             },
             {
@@ -1004,6 +1059,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("Carquefou HC", "PHC Marcq en Baroeul", "2026-01-04 13:20:00", 28),
                 "source": "manual"
             },
             {
@@ -1015,6 +1071,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("Villa Primrose", "CA Montrouge 92", "2026-01-04 14:25:00", 29),
                 "source": "manual"
             },
             {
@@ -1026,6 +1083,7 @@ async def endpoint_matchs_elite_femmes_salle():
                 "statut": "SCHEDULED",
                 "tournoi": "3/4 janvier - Carquefou",
                 "lieu": "Salle de la Mainguais",
+                "rencId": generate_renc_id("La Baule OHC", "Blanc Mesnil SH", "2026-01-04 15:30:00", 30),
                 "source": "manual"
             },
         ]
