@@ -30,9 +30,55 @@ load_dotenv()
 
 # Création de l'instance FastAPI
 app = FastAPI(
-    title="Hockey sur Gazon France API",
-    description="API pour accéder aux données du hockey sur gazon français (championnats de la FFH)",
-    version="1.0.0"
+    title="🏑 Hockey sur Gazon France API",
+    description="""
+    ## API Officielle du Hockey sur Gazon Français
+    
+    Accédez aux données des championnats et compétitions FFH en temps réel.
+    
+    ### 📋 Endpoints disponibles:
+    
+    - **Elite Hommes/Femmes** : Classements et matchs
+    - **Interligues U14** : Garçons et Filles - Championnat de France des Régions
+    - **Carquefou HC** : Données du club local (1SH, 2SH, SD)
+    - **Salle Elite Femmes** : Tournaments 2025-2026
+    - **Notifications** : S'abonner aux fins de matchs par email
+    
+    ### 🔄 Mise à jour:
+    - Vérification automatique des matchs terminés toutes les 30 minutes
+    - Notifications en temps réel via SendGrid
+    """,
+    version="1.0.0",
+    openapi_tags=[
+        {
+            "name": "Elite Hommes",
+            "description": "Championnats Elite Hommes - Gazon"
+        },
+        {
+            "name": "Elite Femmes",
+            "description": "Championnats Elite Femmes - Gazon"
+        },
+        {
+            "name": "Salle Elite Femmes",
+            "description": "Tournaments Elite Femmes en Salle - Décembre 2025 & Janvier 2026"
+        },
+        {
+            "name": "Interligues U14",
+            "description": "Championnat de France des Régions U14 - Garçons et Filles"
+        },
+        {
+            "name": "Carquefou HC",
+            "description": "Données spécifiques du club Carquefou HC"
+        },
+        {
+            "name": "Notifications",
+            "description": "Gestion des abonnements aux notifications par email"
+        },
+        {
+            "name": "Santé",
+            "description": "Endpoints de vérification de disponibilité"
+        }
+    ]
 )
 
 # Configuration CORS pour accepter les requêtes depuis n'importe quelle origine
@@ -464,7 +510,7 @@ def check_and_notify_finished_matches(matches_data, competition_prefix, competit
                 print(f"✉️ [Notification] Match notifié: {match_id}")
 
 
-@app.get("/api/v1/elite-hommes/classement", tags=["Classement"])
+@app.get("/api/v1/elite-hommes/classement", tags=["Elite Hommes"])
 async def endpoint_classement():
     """
     Récupère le classement actuel de l'élite hommes.
@@ -490,7 +536,7 @@ async def endpoint_classement():
     }
 
 
-@app.get("/api/v1/elite-hommes/matchs", tags=["Matchs"])
+@app.get("/api/v1/elite-hommes/matchs", tags=["Elite Hommes"])
 async def endpoint_matchs():
     """
     Récupère la liste des matchs de l'élite hommes.
@@ -520,7 +566,7 @@ async def endpoint_matchs():
     }
 
 
-@app.get("/api/v1/elite-femmes/classement", tags=["Classement"])
+@app.get("/api/v1/elite-femmes/classement", tags=["Elite Femmes"])
 async def endpoint_classement_femmes():
     """
     Récupère le classement actuel de l'élite femmes.
@@ -546,7 +592,7 @@ async def endpoint_classement_femmes():
     }
 
 
-@app.get("/api/v1/elite-femmes/matchs", tags=["Matchs"])
+@app.get("/api/v1/elite-femmes/matchs", tags=["Elite Femmes"])
 async def endpoint_matchs_femmes():
     """
     Récupère la liste des matchs de l'élite femmes.
@@ -572,7 +618,7 @@ async def endpoint_matchs_femmes():
     }
 
 
-@app.get("/api/v1/salle/elite-femmes/classement", tags=["Classement Salle"], summary="Classement Elite Femmes Salle")
+@app.get("/api/v1/salle/elite-femmes/classement", tags=["Salle Elite Femmes"], summary="Classement Elite Femmes Salle")
 async def endpoint_classement_elite_femmes_salle():
     """
     Récupère le classement de l'élite femmes en salle.
@@ -631,7 +677,7 @@ async def endpoint_classement_elite_femmes_salle():
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération du classement Elite Femmes Salle: {str(e)}")
 
 
-@app.get("/api/v1/salle/elite-femmes/matchs", tags=["Matchs Salle"], summary="Matchs Elite Femmes Salle")
+@app.get("/api/v1/salle/elite-femmes/matchs", tags=["Salle Elite Femmes"], summary="Matchs Elite Femmes Salle")
 async def endpoint_matchs_elite_femmes_salle():
     """
     Récupère la liste des matchs de l'élite femmes en salle.
@@ -1359,7 +1405,7 @@ MANIFESTATION_IDS = {
     }
 }
 
-@app.get("/api/v1/{discipline}/u14-garcons/phases", tags=["Interligues U14 - Générique"])
+@app.get("/api/v1/{discipline}/u14-garcons/phases", tags=["Interligues U14 - Générique"], include_in_schema=False)
 async def get_u14_garcons_phases_generic(discipline: str):
     """
     Récupère les phases des Interligues U14 Garçons pour une discipline donnée.
@@ -1393,7 +1439,7 @@ async def get_u14_garcons_phases_generic(discipline: str):
         "categorie": "U14 Garçons"
     }
 
-@app.get("/api/v1/{discipline}/u14-garcons/poules/{phase_id}", tags=["Interligues U14 - Générique"])
+@app.get("/api/v1/{discipline}/u14-garcons/poules/{phase_id}", tags=["Interligues U14 - Générique"], include_in_schema=False)
 async def get_u14_garcons_poules_generic(discipline: str, phase_id: str):
     """
     Récupère les poules et rencontres pour une phase des Interligues U14 Garçons.
@@ -1445,7 +1491,7 @@ async def get_u14_garcons_poules_generic(discipline: str, phase_id: str):
         "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
     }
 
-@app.get("/api/v1/{discipline}/u14-filles/phases", tags=["Interligues U14 - Générique"])
+@app.get("/api/v1/{discipline}/u14-filles/phases", tags=["Interligues U14 - Générique"], include_in_schema=False)
 async def get_u14_filles_phases_generic(discipline: str):
     """
     Récupère les phases des Interligues U14 Filles pour une discipline donnée.
@@ -1479,7 +1525,7 @@ async def get_u14_filles_phases_generic(discipline: str):
         "categorie": "U14 Filles"
     }
 
-@app.get("/api/v1/{discipline}/u14-filles/poules/{phase_id}", tags=["Interligues U14 - Générique"])
+@app.get("/api/v1/{discipline}/u14-filles/poules/{phase_id}", tags=["Interligues U14 - Générique"], include_in_schema=False)
 async def get_u14_filles_poules_generic(discipline: str, phase_id: str):
     """
     Récupère les poules et rencontres pour une phase des Interligues U14 Filles.
