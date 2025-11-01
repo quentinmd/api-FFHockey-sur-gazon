@@ -572,6 +572,357 @@ async def endpoint_matchs_femmes():
     }
 
 
+@app.get("/api/v1/salle/elite-femmes/matchs", tags=["Matchs Salle"], summary="Matchs Elite Femmes Salle")
+async def endpoint_matchs_elite_femmes_salle():
+    """
+    Récupère la liste des matchs de l'élite femmes en salle.
+    Les données sont actuellement manuelles en attente de confirmation FFHockey.
+    
+    Tournois:
+    - 13/14 décembre (lieu à confirmer)
+    - 3/4 janvier (Carquefou - Salle de la Mainguais)
+    
+    Returns:
+        Liste des matchs Elite Femmes Salle avec données manuelles
+    """
+    try:
+        # Données manuelles des tournois Elite Femmes Salle
+        matches_data = [
+            # Tournoi 1 - 13/14 décembre
+            {
+                "equipe_domicile": "HC Grenoble",
+                "equipe_exterieur": "IH Lambersart",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-13 13:00:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "AS Villeurbanne EL",
+                "equipe_exterieur": "PHC Marcq en Baroeul",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-13 14:05:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Cambrai HC",
+                "equipe_exterieur": "Blanc Mesnil SH",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-13 15:10:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Carquefou HC",
+                "equipe_exterieur": "La Baule OHC",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-13 16:15:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "IH Lambersart",
+                "equipe_exterieur": "CA Montrouge 92",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-13 17:20:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "PHC Marcq en Baroeul",
+                "equipe_exterieur": "HC Grenoble",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-13 18:25:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "AS Villeurbanne EL",
+                "equipe_exterieur": "Villa Primrose",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-13 19:30:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Cambrai HC",
+                "equipe_exterieur": "La Baule OHC",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-13 20:35:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            # Dimanche 14 décembre
+            {
+                "equipe_domicile": "Blanc Mesnil SH",
+                "equipe_exterieur": "Carquefou HC",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-14 09:00:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "La Baule OHC",
+                "equipe_exterieur": "Villa Primrose",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-14 10:05:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "PHC Marcq en Baroeul",
+                "equipe_exterieur": "IH Lambersart",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-14 11:10:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "AS Villeurbanne EL",
+                "equipe_exterieur": "CA Montrouge 92",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-14 12:15:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Carquefou HC",
+                "equipe_exterieur": "Cambrai HC",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-14 13:20:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Blanc Mesnil SH",
+                "equipe_exterieur": "Villa Primrose",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-14 14:25:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "HC Grenoble",
+                "equipe_exterieur": "CA Montrouge 92",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2025-12-14 15:30:00",
+                "statut": "SCHEDULED",
+                "tournoi": "13/14 décembre",
+                "source": "manual"
+            },
+            
+            # Tournoi 2 - 3/4 janvier (Carquefou - Salle de la Mainguais)
+            {
+                "equipe_domicile": "La Baule OHC",
+                "equipe_exterieur": "PHC Marcq en Baroeul",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-03 13:00:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Carquefou HC",
+                "equipe_exterieur": "CA Montrouge 92",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-03 14:05:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "HC Grenoble",
+                "equipe_exterieur": "Cambrai HC",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-03 15:10:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Blanc Mesnil SH",
+                "equipe_exterieur": "PHC Marcq en Baroeul",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-03 16:15:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "IH Lambersart",
+                "equipe_exterieur": "AS Villeurbanne EL",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-03 17:20:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Villa Primrose",
+                "equipe_exterieur": "Cambrai HC",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-03 18:25:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Carquefou HC",
+                "equipe_exterieur": "HC Grenoble",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-03 19:30:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "AS Villeurbanne EL",
+                "equipe_exterieur": "Blanc Mesnil SH",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-03 20:35:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            # Dimanche 4 janvier
+            {
+                "equipe_domicile": "Villa Primrose",
+                "equipe_exterieur": "IH Lambersart",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-04 09:00:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Cambrai HC",
+                "equipe_exterieur": "CA Montrouge 92",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-04 10:05:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "HC Grenoble",
+                "equipe_exterieur": "AS Villeurbanne EL",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-04 11:10:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "IH Lambersart",
+                "equipe_exterieur": "La Baule OHC",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-04 12:15:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Carquefou HC",
+                "equipe_exterieur": "PHC Marcq en Baroeul",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-04 13:20:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "Villa Primrose",
+                "equipe_exterieur": "CA Montrouge 92",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-04 14:25:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+            {
+                "equipe_domicile": "La Baule OHC",
+                "equipe_exterieur": "Blanc Mesnil SH",
+                "score_domicile": "",
+                "score_exterieur": "",
+                "date": "2026-01-04 15:30:00",
+                "statut": "SCHEDULED",
+                "tournoi": "3/4 janvier - Carquefou",
+                "lieu": "Salle de la Mainguais",
+                "source": "manual"
+            },
+        ]
+        
+        return {
+            "success": True,
+            "data": matches_data,
+            "count": len(matches_data),
+            "discipline": "salle",
+            "categorie": "Elite Femmes",
+            "note": "Données manuelles en attente de confirmation FFHockey. Lieu du 1er tournoi à confirmer."
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs Elite Femmes Salle: {str(e)}")
+
+
 @app.get("/api/v1/carquefou/sd/matchs", tags=["Carquefou HC"])
 async def endpoint_matchs_carquefou_sd():
     """
