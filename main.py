@@ -647,7 +647,7 @@ async def endpoint_matchs_elite_femmes_salle():
     try:
         # Données manuelles des tournois Elite Femmes Salle
         matches_data = [
-            # Tournoi 1 - 13/14 décembre
+            # Tournoi 1 - 13/14 décembre (Villeurbanne)
             {
                 "equipe_domicile": "HC Grenoble",
                 "equipe_exterieur": "IH Lambersart",
@@ -655,7 +655,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-13 13:00:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -665,7 +666,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-13 14:05:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -675,7 +677,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-13 15:10:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -685,7 +688,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-13 16:15:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -695,7 +699,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-13 17:20:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -705,7 +710,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-13 18:25:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -715,7 +721,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-13 19:30:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -725,10 +732,11 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-13 20:35:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
-            # Dimanche 14 décembre
+            # Dimanche 14 décembre (Villeurbanne)
             {
                 "equipe_domicile": "Blanc Mesnil SH",
                 "equipe_exterieur": "Carquefou HC",
@@ -736,7 +744,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-14 09:00:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -746,7 +755,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-14 10:05:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -756,7 +766,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-14 11:10:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -766,7 +777,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-14 12:15:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -776,7 +788,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-14 13:20:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -786,7 +799,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-14 14:25:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             {
@@ -796,7 +810,8 @@ async def endpoint_matchs_elite_femmes_salle():
                 "score_exterieur": "",
                 "date": "2025-12-14 15:30:00",
                 "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre",
+                "tournoi": "13/14 décembre - Villeurbanne",
+                "lieu": "Villeurbanne",
                 "source": "manual"
             },
             
@@ -975,7 +990,7 @@ async def endpoint_matchs_elite_femmes_salle():
             "count": len(matches_data),
             "discipline": "salle",
             "categorie": "Elite Femmes",
-            "note": "Données manuelles en attente de confirmation FFHockey. Lieu du 1er tournoi à confirmer."
+            "note": "Données manuelles en attente de confirmation FFHockey."
         }
         
     except Exception as e:
