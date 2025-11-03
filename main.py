@@ -21,6 +21,8 @@ from sendgrid.helpers.mail import Mail
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from bs4 import BeautifulSoup
+import firebase_admin
+from firebase_admin import credentials, db, auth
 from scraper import (
     get_ranking, get_matches, 
     get_ranking_femmes, get_matches_femmes,
@@ -32,8 +34,32 @@ from scraper import (
 # Charger les variables d'environnement depuis le fichier .env
 load_dotenv()
 
+# ============================================
+# FIREBASE INITIALIZATION
+# ============================================
 
-# Création de l'instance FastAPI
+# Initialiser Firebase Admin SDK
+try:
+    # Chercher le fichier de clé Firebase
+    firebase_key_path = os.environ.get("FIREBASE_KEY_PATH", "firebase_key.json")
+    
+    if os.path.exists(firebase_key_path):
+        cred = credentials.Certificate(firebase_key_path)
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': os.environ.get(
+                "FIREBASE_DB_URL", 
+                "https://api-ffhockey.firebaseio.com"
+            )
+        })
+        FIREBASE_ENABLED = True
+        print("✅ Firebase Admin SDK initialized")
+    else:
+        FIREBASE_ENABLED = False
+        print("⚠️  Firebase key not found - Live score disabled")
+except Exception as e:
+    FIREBASE_ENABLED = False
+    print(f"⚠️  Firebase initialization failed: {str(e)}")
+
 app = FastAPI(
     title="🏑 Hockey sur Gazon France API",
     description="""
@@ -226,6 +252,32 @@ async def shutdown_scheduler():
 # Modèle pour la souscription email
 class EmailSubscription(BaseModel):
     email: str
+
+# ============================================
+# MODELS POUR LIVE SCORE (FIREBASE)
+# ============================================
+
+class ScoreUpdate(BaseModel):
+    """Modèle pour mettre à jour le score d'un match"""
+    score_domicile: int
+    score_exterieur: int
+
+class ScorerUpdate(BaseModel):
+    """Modèle pour ajouter un buteur"""
+    joueur: str
+    equipe: str  # "domicile" ou "exterieur"
+    temps: int  # en minutes
+    
+class CardUpdate(BaseModel):
+    """Modèle pour ajouter un carton"""
+    joueur: str
+    equipe: str  # "domicile" ou "exterieur"
+    temps: int  # en minutes
+    couleur: str  # "jaune" ou "rouge"
+
+class MatchStatusUpdate(BaseModel):
+    """Modèle pour mettre à jour le statut d'un match"""
+    statut: str  # "SCHEDULED", "LIVE", "FINISHED"
 
 # Stockage des emails abonnés (en fichier JSON pour persistence)
 SUBSCRIBERS_FILE = "email_subscribers.json"
@@ -3181,6 +3233,286 @@ async def get_match_sheet(renc_id: str):
         raise HTTPException(status_code=503, detail="Impossible de se connecter à l'API FFH")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
+# ============================================
+# LIVE SCORE ENDPOINTS (FIREBASE)
+# ============================================
+
+def verify_admin_token(token: str) -> bool:
+    """
+    Vérifie le token admin (simple mot de passe pour MVP).
+    À remplacer par JWT Firebase plus tard.
+    """
+    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    return token == admin_password
+
+@app.get("/api/v1/live/matches", tags=["Live Score"], summary="Récupérer tous les matchs live")
+async def get_live_matches():
+    """
+    Récupère tous les matchs en direct depuis Firebase.
+    
+    Returns:
+        Liste des matchs avec scores, scorers, cartons en temps réel.
+    """
+    if not FIREBASE_ENABLED:
+        raise HTTPException(status_code=503, detail="Firebase non configuré")
+    
+    try:
+        matches_ref = db.reference('matches')
+        matches_data = matches_ref.get()
+        
+        if not matches_data:
+            return {"success": True, "data": {}}
+        
+        return {
+            "success": True,
+            "data": matches_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+
+
+@app.get("/api/v1/live/match/{match_id}", tags=["Live Score"], summary="Récupérer un match live")
+async def get_live_match(match_id: str):
+    """
+    Récupère un match spécifique depuis Firebase.
+    
+    Args:
+        match_id: ID du match
+        
+    Returns:
+        Données complètes du match (score, scorers, cartons)
+    """
+    if not FIREBASE_ENABLED:
+        raise HTTPException(status_code=503, detail="Firebase non configuré")
+    
+    try:
+        match_ref = db.reference(f'matches/{match_id}')
+        match_data = match_ref.get()
+        
+        if not match_data:
+            raise HTTPException(status_code=404, detail="Match non trouvé")
+        
+        return {
+            "success": True,
+            "match_id": match_id,
+            "data": match_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+
+
+@app.put("/api/v1/live/match/{match_id}/score", tags=["Live Score"], summary="Mettre à jour le score")
+async def update_match_score(match_id: str, score: ScoreUpdate, admin_token: str = None):
+    """
+    Mettre à jour le score d'un match en direct.
+    
+    Args:
+        match_id: ID du match
+        score: Les nouveaux scores (domicile et extérieur)
+        admin_token: Token d'authentification admin (query param)
+        
+    Returns:
+        Confirmation de la mise à jour
+        
+    Example:
+        PUT /api/v1/live/match/match123/score?admin_token=admin123
+        {"score_domicile": 5, "score_exterieur": 3}
+    """
+    if not FIREBASE_ENABLED:
+        raise HTTPException(status_code=503, detail="Firebase non configuré")
+    
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        match_ref = db.reference(f'matches/{match_id}')
+        match_ref.update({
+            'score_domicile': score.score_domicile,
+            'score_exterieur': score.score_exterieur,
+            'last_updated': int(time.time())
+        })
+        
+        return {
+            "success": True,
+            "message": f"Score du match {match_id} mis à jour",
+            "match_id": match_id,
+            "score_domicile": score.score_domicile,
+            "score_exterieur": score.score_exterieur
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+
+
+@app.post("/api/v1/live/match/{match_id}/scorer", tags=["Live Score"], summary="Ajouter un buteur")
+async def add_scorer(match_id: str, scorer: ScorerUpdate, admin_token: str = None):
+    """
+    Ajouter un buteur à un match en direct.
+    
+    Args:
+        match_id: ID du match
+        scorer: Informations du buteur
+        admin_token: Token d'authentification admin
+        
+    Returns:
+        Confirmation de l'ajout
+        
+    Example:
+        POST /api/v1/live/match/match123/scorer?admin_token=admin123
+        {"joueur": "Dupont", "equipe": "domicile", "temps": 25}
+    """
+    if not FIREBASE_ENABLED:
+        raise HTTPException(status_code=503, detail="Firebase non configuré")
+    
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        scorers_ref = db.reference(f'matches/{match_id}/scorers')
+        current_scorers = scorers_ref.get() or []
+        
+        new_scorer = {
+            "joueur": scorer.joueur,
+            "equipe": scorer.equipe,
+            "temps": scorer.temps,
+            "timestamp": int(time.time())
+        }
+        
+        if isinstance(current_scorers, list):
+            current_scorers.append(new_scorer)
+        else:
+            current_scorers = [new_scorer]
+        
+        scorers_ref.set(current_scorers)
+        
+        return {
+            "success": True,
+            "message": f"Buteur {scorer.joueur} ajouté pour l'équipe {scorer.equipe}",
+            "match_id": match_id,
+            "scorer": new_scorer
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+
+
+@app.post("/api/v1/live/match/{match_id}/card", tags=["Live Score"], summary="Ajouter un carton")
+async def add_card(match_id: str, card: CardUpdate, admin_token: str = None):
+    """
+    Ajouter un carton (jaune ou rouge) à un match en direct.
+    
+    Args:
+        match_id: ID du match
+        card: Informations du carton
+        admin_token: Token d'authentification admin
+        
+    Returns:
+        Confirmation de l'ajout
+        
+    Example:
+        POST /api/v1/live/match/match123/card?admin_token=admin123
+        {"joueur": "Dupont", "equipe": "domicile", "temps": 45, "couleur": "jaune"}
+    """
+    if not FIREBASE_ENABLED:
+        raise HTTPException(status_code=503, detail="Firebase non configuré")
+    
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        cards_ref = db.reference(f'matches/{match_id}/cards')
+        current_cards = cards_ref.get() or []
+        
+        new_card = {
+            "joueur": card.joueur,
+            "equipe": card.equipe,
+            "temps": card.temps,
+            "couleur": card.couleur,
+            "timestamp": int(time.time())
+        }
+        
+        if isinstance(current_cards, list):
+            current_cards.append(new_card)
+        else:
+            current_cards = [new_card]
+        
+        cards_ref.set(current_cards)
+        
+        return {
+            "success": True,
+            "message": f"Carton {card.couleur} donné à {card.joueur}",
+            "match_id": match_id,
+            "card": new_card
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+
+
+@app.put("/api/v1/live/match/{match_id}/status", tags=["Live Score"], summary="Mettre à jour le statut du match")
+async def update_match_status(match_id: str, status: MatchStatusUpdate, admin_token: str = None):
+    """
+    Mettre à jour le statut d'un match (SCHEDULED, LIVE, FINISHED).
+    
+    Args:
+        match_id: ID du match
+        status: Nouveau statut
+        admin_token: Token d'authentification admin
+        
+    Returns:
+        Confirmation de la mise à jour
+    """
+    if not FIREBASE_ENABLED:
+        raise HTTPException(status_code=503, detail="Firebase non configuré")
+    
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        match_ref = db.reference(f'matches/{match_id}')
+        match_ref.update({
+            'statut': status.statut,
+            'last_updated': int(time.time())
+        })
+        
+        return {
+            "success": True,
+            "message": f"Statut du match {match_id} changé à {status.statut}",
+            "match_id": match_id,
+            "statut": status.statut
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+
+
+@app.delete("/api/v1/live/match/{match_id}", tags=["Live Score"], summary="Supprimer un match live")
+async def delete_match(match_id: str, admin_token: str = None):
+    """
+    Supprimer un match de Firebase.
+    
+    Args:
+        match_id: ID du match à supprimer
+        admin_token: Token d'authentification admin
+        
+    Returns:
+        Confirmation de la suppression
+    """
+    if not FIREBASE_ENABLED:
+        raise HTTPException(status_code=503, detail="Firebase non configuré")
+    
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        match_ref = db.reference(f'matches/{match_id}')
+        match_ref.delete()
+        
+        return {
+            "success": True,
+            "message": f"Match {match_id} supprimé",
+            "match_id": match_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
 
 
 if __name__ == "__main__":
