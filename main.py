@@ -40,43 +40,71 @@ load_dotenv()
 
 # Initialiser Firebase Admin SDK
 FIREBASE_ENABLED = False
+db = None
+
 try:
     cred = None
+    firebase_key_loaded_from = None
     
-    # Méthode 1: Firebase key JSON en variable d'environnement
+    # Méthode 1: Firebase key JSON en variable d'environnement (Fly.io)
     firebase_key_json = os.environ.get("FIREBASE_KEY")
     if firebase_key_json:
         try:
-            import json
             firebase_key_dict = json.loads(firebase_key_json)
             cred = credentials.Certificate(firebase_key_dict)
+            firebase_key_loaded_from = "FIREBASE_KEY environment variable (Fly.io)"
             print("✅ Firebase key loaded from FIREBASE_KEY environment variable")
         except Exception as e:
             print(f"❌ Error parsing FIREBASE_KEY JSON: {str(e)}")
     
-    # Méthode 2: Fichier firebase_key.json local
+    # Méthode 2: Fichier firebase_key.json local (développement local)
     if not cred:
         firebase_key_path = os.environ.get("FIREBASE_KEY_PATH", "firebase_key.json")
         if os.path.exists(firebase_key_path):
-            cred = credentials.Certificate(firebase_key_path)
-            print("✅ Firebase key loaded from firebase_key.json file")
+            try:
+                cred = credentials.Certificate(firebase_key_path)
+                firebase_key_loaded_from = f"firebase_key.json file at {firebase_key_path}"
+                print(f"✅ Firebase key loaded from {firebase_key_path}")
+            except Exception as e:
+                print(f"❌ Error loading firebase_key.json: {str(e)}")
     
     # Initialiser l'app si on a une clé
     if cred:
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': os.environ.get(
+        try:
+            # Récupérer l'URL de la base de données
+            firebase_db_url = os.environ.get(
                 "FIREBASE_DB_URL", 
                 "https://api-ffhockey.firebaseio.com"
             )
-        })
-        FIREBASE_ENABLED = True
-        print("✅ Firebase Admin SDK initialized successfully")
+            
+            print(f"🔐 Initializing Firebase with database: {firebase_db_url}")
+            
+            # Initialiser Firebase Admin SDK
+            firebase_app = firebase_admin.initialize_app(cred, {
+                'databaseURL': firebase_db_url
+            })
+            
+            FIREBASE_ENABLED = True
+            print(f"✅ Firebase Admin SDK initialized successfully!")
+            print(f"✅ Firebase credentials loaded from: {firebase_key_loaded_from}")
+            print(f"✅ Firebase database URL: {firebase_db_url}")
+            
+        except Exception as init_error:
+            FIREBASE_ENABLED = False
+            print(f"❌ Firebase initialization failed: {str(init_error)}")
+            print(f"   Error type: {type(init_error).__name__}")
+            import traceback
+            print(f"   Traceback: {traceback.format_exc()}")
     else:
         print("⚠️  Firebase key not found - Live score disabled")
+        print("   Make sure FIREBASE_KEY environment variable is set or firebase_key.json file exists")
         
 except Exception as e:
     FIREBASE_ENABLED = False
-    print(f"⚠️  Firebase initialization failed: {str(e)}")
+    db = None
+    print(f"⚠️  Firebase initialization failed at top level: {str(e)}")
+    import traceback
+    print(f"   Traceback: {traceback.format_exc()}")
 
 # Cache en mémoire pour les matchs live (fallback si Firebase échoue)
 LIVE_MATCHES_CACHE = {}
@@ -3453,6 +3481,62 @@ def verify_admin_token(token: str) -> bool:
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
     return token == admin_password
 
+@app.get("/api/v1/live/status", tags=["Live Score"], summary="Status Firebase")
+async def get_firebase_status():
+    """
+    Endpoint de debug pour vérifier l'état de la connexion Firebase.
+    Utile pour diagnostiquer les problèmes de connexion.
+    """
+    try:
+        from firebase_admin import db as firebase_db
+        
+        status_info = {
+            "firebase_enabled": FIREBASE_ENABLED,
+            "firebase_imported": "firebase_admin" in str(__import__('sys').modules),
+            "test": None,
+            "error": None
+        }
+        
+        if FIREBASE_ENABLED:
+            try:
+                # Essayer une lecture simple depuis Firebase
+                ref = firebase_db.reference('_test')
+                test_data = ref.get()
+                status_info["test"] = "✅ Connexion Firebase fonctionnelle"
+                status_info["test_read"] = test_data
+                return {
+                    "status": "OK",
+                    "firebase_connected": True,
+                    "info": status_info,
+                    "message": "Firebase est configuré et connecté"
+                }
+            except Exception as e:
+                status_info["error"] = f"Erreur de lecture Firebase: {str(e)}"
+                return {
+                    "status": "ERROR",
+                    "firebase_connected": False,
+                    "info": status_info,
+                    "message": f"Firebase configuré mais erreur: {str(e)}"
+                }
+        else:
+            return {
+                "status": "DISABLED",
+                "firebase_connected": False,
+                "info": status_info,
+                "message": "Firebase n'est pas configuré (FIREBASE_KEY manquante ou invalide)",
+                "next_steps": [
+                    "1. Vérifier que FIREBASE_KEY existe sur Fly.io dashboard",
+                    "2. Vérifier que la clé JSON est valide",
+                    "3. Vérifier la FIREBASE_DB_URL sur Fly.io dashboard"
+                ]
+            }
+    except Exception as e:
+        return {
+            "status": "ERROR",
+            "error": str(e),
+            "firebase_enabled": FIREBASE_ENABLED
+        }
+
 @app.get("/api/v1/live/matches", tags=["Live Score"], summary="Récupérer tous les matchs live")
 async def get_live_matches():
     """
@@ -3465,7 +3549,8 @@ async def get_live_matches():
         raise HTTPException(status_code=503, detail="Firebase non configuré")
     
     try:
-        matches_ref = db.reference('matches')
+        from firebase_admin import db as firebase_db
+        matches_ref = firebase_db.reference('matches')
         matches_data = matches_ref.get()
         
         if not matches_data:
