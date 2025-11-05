@@ -39,12 +39,30 @@ load_dotenv()
 # ============================================
 
 # Initialiser Firebase Admin SDK
+FIREBASE_ENABLED = False
 try:
-    # Chercher le fichier de clé Firebase
-    firebase_key_path = os.environ.get("FIREBASE_KEY_PATH", "firebase_key.json")
+    cred = None
     
-    if os.path.exists(firebase_key_path):
-        cred = credentials.Certificate(firebase_key_path)
+    # Méthode 1: Firebase key JSON en variable d'environnement
+    firebase_key_json = os.environ.get("FIREBASE_KEY")
+    if firebase_key_json:
+        try:
+            import json
+            firebase_key_dict = json.loads(firebase_key_json)
+            cred = credentials.Certificate(firebase_key_dict)
+            print("✅ Firebase key loaded from FIREBASE_KEY environment variable")
+        except Exception as e:
+            print(f"❌ Error parsing FIREBASE_KEY JSON: {str(e)}")
+    
+    # Méthode 2: Fichier firebase_key.json local
+    if not cred:
+        firebase_key_path = os.environ.get("FIREBASE_KEY_PATH", "firebase_key.json")
+        if os.path.exists(firebase_key_path):
+            cred = credentials.Certificate(firebase_key_path)
+            print("✅ Firebase key loaded from firebase_key.json file")
+    
+    # Initialiser l'app si on a une clé
+    if cred:
         firebase_admin.initialize_app(cred, {
             'databaseURL': os.environ.get(
                 "FIREBASE_DB_URL", 
@@ -52,10 +70,10 @@ try:
             )
         })
         FIREBASE_ENABLED = True
-        print("✅ Firebase Admin SDK initialized")
+        print("✅ Firebase Admin SDK initialized successfully")
     else:
-        FIREBASE_ENABLED = False
         print("⚠️  Firebase key not found - Live score disabled")
+        
 except Exception as e:
     FIREBASE_ENABLED = False
     print(f"⚠️  Firebase initialization failed: {str(e)}")
