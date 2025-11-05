@@ -109,6 +109,9 @@ except Exception as e:
 # Cache en mémoire pour les matchs live (fallback si Firebase échoue)
 LIVE_MATCHES_CACHE = {}
 
+# Webhooks - Liste des URLs pour recevoir les notifications de mise à jour
+REGISTERED_WEBHOOKS = {}
+
 app = FastAPI(
     title="🏑 Hockey sur Gazon France API",
     description="""
@@ -3564,6 +3567,135 @@ async def get_live_matches():
         raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
 
 
+@app.get("/api/v1/live/matches/by-championship/{championship}", tags=["Live Score"], summary="Récupérer matchs par championnat")
+async def get_live_matches_by_championship(championship: str):
+    """
+    Récupère tous les matchs en direct d'un championnat spécifique depuis Firebase.
+    
+    Args:
+        championship: Le championnat ('elite-hommes', 'elite-femmes', etc.)
+    
+    Returns:
+        Liste des matchs du championnat avec scores, scorers, cartons en temps réel.
+        
+    Example:
+        GET /api/v1/live/matches/by-championship/elite-femmes
+    """
+    if not FIREBASE_ENABLED:
+        raise HTTPException(status_code=503, detail="Firebase non configuré")
+    
+    try:
+        from firebase_admin import db as firebase_db
+        matches_ref = firebase_db.reference('matches')
+        matches_data = matches_ref.get()
+        
+        if not matches_data:
+            return {"success": True, "data": {}, "championship": championship, "count": 0}
+        
+        # Filtrer par championship
+        filtered_matches = {
+            key: match for key, match in matches_data.items()
+            if match.get('championship') == championship
+        }
+        
+        return {
+            "success": True,
+            "data": filtered_matches,
+            "championship": championship,
+            "count": len(filtered_matches)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+
+
+@app.post("/api/v1/webhooks/match-update", tags=["Webhooks"], summary="Enregistrer un webhook pour les mises à jour")
+async def register_webhook(webhook_url: str):
+    """
+    Enregistre une URL webhook pour recevoir les notifications de mises à jour de matchs.
+    
+    Quand un score ou un événement change, l'API fera une requête POST à l'URL fournie
+    avec les données du match mis à jour.
+    
+    Args:
+        webhook_url: L'URL complète où recevoir les notifications (ex: https://example.com/my-webhook)
+    
+    Returns:
+        Confirmation de l'enregistrement du webhook
+        
+    Example:
+        POST /api/v1/webhooks/match-update?webhook_url=https://example.com/updates
+    """
+    import re
+    from urllib.parse import urlparse
+    
+    # Valider l'URL
+    try:
+        result = urlparse(webhook_url)
+        is_valid = all([result.scheme in ['http', 'https'], result.netloc])
+        if not is_valid:
+            raise ValueError("URL invalide")
+    except:
+        raise HTTPException(status_code=400, detail="webhook_url doit être une URL valide (ex: https://example.com/webhook)")
+    
+    # Générer un ID unique pour le webhook
+    webhook_id = hashlib.md5(webhook_url.encode()).hexdigest()[:8]
+    
+    # Enregistrer le webhook
+    REGISTERED_WEBHOOKS[webhook_id] = {
+        'url': webhook_url,
+        'registered_at': time.time(),
+        'active': True
+    }
+    
+    return {
+        "success": True,
+        "message": f"Webhook enregistré avec succès",
+        "webhook_id": webhook_id,
+        "webhook_url": webhook_url,
+        "next_step": "Les mises à jour de matchs seront envoyées à cette URL"
+    }
+
+
+@app.delete("/api/v1/webhooks/match-update/{webhook_id}", tags=["Webhooks"], summary="Désenregistrer un webhook")
+async def unregister_webhook(webhook_id: str):
+    """
+    Désenregistre un webhook pour arrêter de recevoir les notifications.
+    
+    Args:
+        webhook_id: L'ID du webhook (retourné lors de l'enregistrement)
+    
+    Returns:
+        Confirmation de la suppression
+        
+    Example:
+        DELETE /api/v1/webhooks/match-update/a1b2c3d4
+    """
+    if webhook_id not in REGISTERED_WEBHOOKS:
+        raise HTTPException(status_code=404, detail=f"Webhook {webhook_id} non trouvé")
+    
+    del REGISTERED_WEBHOOKS[webhook_id]
+    
+    return {
+        "success": True,
+        "message": f"Webhook {webhook_id} supprimé avec succès"
+    }
+
+
+@app.get("/api/v1/webhooks/list", tags=["Webhooks"], summary="Lister tous les webhooks enregistrés")
+async def list_webhooks():
+    """
+    Liste tous les webhooks actuellement enregistrés.
+    
+    Returns:
+        Liste des webhooks actifs
+    """
+    return {
+        "success": True,
+        "webhooks": REGISTERED_WEBHOOKS,
+        "count": len(REGISTERED_WEBHOOKS)
+    }
+
+
 @app.post("/api/v1/live/match/{match_id}/init", tags=["Live Score"], summary="Initialiser un match")
 async def init_live_match(match_id: str, admin_token: str = None):
     """
@@ -3630,7 +3762,8 @@ async def get_live_match(match_id: str):
         raise HTTPException(status_code=503, detail="Firebase non configuré")
     
     try:
-        match_ref = db.reference(f'matches/{match_id}')
+        from firebase_admin import db as firebase_db
+        match_ref = firebase_db.reference(f'matches/{match_id}')
         match_data = match_ref.get()
         
         if not match_data:
@@ -3669,7 +3802,8 @@ async def update_match_score(match_id: str, score: ScoreUpdate, admin_token: str
         # Essayer Firebase en premier
         if FIREBASE_ENABLED:
             try:
-                match_ref = db.reference(f'matches/{match_id}')
+                from firebase_admin import db as firebase_db
+                match_ref = firebase_db.reference(f'matches/{match_id}')
                 
                 # Vérifier si le match existe (peut lever une exception 404)
                 try:
@@ -3728,13 +3862,36 @@ async def update_match_score(match_id: str, score: ScoreUpdate, admin_token: str
             LIVE_MATCHES_CACHE[match_id]['last_updated'] = int(time.time())
             backend = "Cache"
         
+        # 🔔 Appeler les webhooks enregistrés
+        if REGISTERED_WEBHOOKS:
+            match_data = {
+                'match_id': match_id,
+                'score_domicile': score.score_domicile,
+                'score_exterieur': score.score_exterieur,
+                'updated_at': int(time.time()),
+                'event_type': 'score_updated'
+            }
+            
+            for webhook_id, webhook_info in REGISTERED_WEBHOOKS.items():
+                try:
+                    import requests as req_module
+                    req_module.post(
+                        webhook_info['url'],
+                        json=match_data,
+                        timeout=5
+                    )
+                    print(f"✅ Webhook {webhook_id} appelé avec succès")
+                except Exception as webhook_error:
+                    print(f"⚠️ Erreur lors de l'appel du webhook {webhook_id}: {str(webhook_error)}")
+        
         return {
             "success": True,
             "message": f"Score du match {match_id} mis à jour",
             "match_id": match_id,
             "score_domicile": score.score_domicile,
             "score_exterieur": score.score_exterieur,
-            "backend": backend
+            "backend": backend,
+            "webhooks_notified": len(REGISTERED_WEBHOOKS)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
