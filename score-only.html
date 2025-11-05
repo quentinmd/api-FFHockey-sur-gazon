@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Score Only Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: rgba(0, 0, 0, 0);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 10px;
+        }
+
+        /* CONTENEUR SCORES */
+        .scores-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: center;
+            backdrop-filter: blur(15px);
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* SCORE BOX */
+        .score-item {
+            background: linear-gradient(135deg, rgba(15, 15, 25, 0.98) 0%, rgba(20, 40, 60, 0.95) 100%);
+            border: 3px solid #00d084;
+            border-radius: 15px;
+            padding: 20px 30px;
+            text-align: center;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 8px 32px rgba(0, 208, 132, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .score-item:hover {
+            transform: scale(1.05);
+        }
+
+        .score-item.animation {
+            animation: scoreFlash 0.6s ease-out;
+        }
+
+        @keyframes scoreFlash {
+            0% {
+                transform: scale(1.3);
+                background: linear-gradient(135deg, rgba(0, 208, 132, 0.4) 0%, rgba(0, 208, 132, 0.3) 100%);
+                border-color: #00d084;
+            }
+            50% {
+                transform: scale(1.15);
+            }
+            100% {
+                transform: scale(1);
+                background: linear-gradient(135deg, rgba(15, 15, 25, 0.98) 0%, rgba(20, 40, 60, 0.95) 100%);
+                border-color: #00d084;
+            }
+        }
+
+        .team-label {
+            font-size: 16px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .score-number {
+            font-size: 120px;
+            font-weight: 900;
+            color: #00d084;
+            line-height: 1;
+            text-shadow: 0 0 20px rgba(0, 208, 132, 0.5);
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 600px) {
+            .scores-container {
+                gap: 15px;
+            }
+
+            .score-item {
+                padding: 15px 20px;
+            }
+
+            .score-number {
+                font-size: 80px;
+            }
+
+            .team-label {
+                font-size: 12px;
+            }
+        }
+
+        /* STATUS INDICATOR */
+        .status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #ccc;
+            transition: background 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .status.connected {
+            background: #00d084;
+            box-shadow: 0 0 20px rgba(0, 208, 132, 0.8);
+        }
+
+        .status.loading {
+            background: #ffa500;
+            animation: pulse 1s infinite;
+        }
+
+        .status.error {
+            background: #ff4444;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ERROR */
+        .error {
+            background: rgba(255, 68, 68, 0.2);
+            border: 2px solid #ff4444;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            color: #fff;
+            min-width: 400px;
+        }
+
+        .error h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .error p {
+            font-size: 14px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="status"></div>
+    <div id="container"></div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:8000/api/v1';
+        const POLL_INTERVAL = 5000; // 5 secondes
+
+        // Récupérer les paramètres de l'URL
+        const params = new URLSearchParams(window.location.search);
+        const championship = params.get('championship') || 'elite-hommes';
+        const matchId = params.get('match_id');
+        const rencId = params.get('renc_id');
+
+        let currentMatch = null;
+        let lastScores = { domicile: 0, exterieur: 0 };
+
+        // ========================
+        // FONCTIONS
+        // ========================
+
+        async function fetchMatch() {
+            try {
+                setStatus('loading');
+                let url;
+                
+                // Mapper le championship au endpoint correct
+                const endpoints = {
+                    'elite-hommes': '/elite-hommes/matchs',
+                    'elite-femmes': '/elite-femmes/matchs',
+                    'salle-elite-femmes': '/salle/elite-femmes/matchs'
+                };
+                
+                const endpoint = endpoints[championship] || '/elite-hommes/matchs';
+                url = `${API_BASE}${endpoint}`;
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                let matches = data.data || data.matches || data.matchs || [];
+                
+                if (Array.isArray(data)) {
+                    matches = data;
+                }
+                
+                // Chercher le match approprié
+                if (rencId && matches.length > 0) {
+                    currentMatch = matches.find(m => String(m.rencId) === String(rencId));
+                } else if (matchId && matches.length > 0) {
+                    currentMatch = matches.find(m => m.match_id === matchId || m.manifId === matchId);
+                } else if (matches.length > 0) {
+                    currentMatch = matches[0];
+                }
+
+                if (currentMatch) {
+                    render();
+                    setStatus('connected');
+                } else {
+                    renderError('❌ Aucun match trouvé');
+                    setStatus('error');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                renderError('❌ Erreur de connexion');
+                setStatus('error');
+            }
+        }
+
+        function render() {
+            if (!currentMatch) return;
+
+            const scoreDomicile = parseInt(currentMatch.score_domicile) || 0;
+            const scoreExterieur = parseInt(currentMatch.score_exterieur) || 0;
+
+            // Vérifier si le score a changé pour l'animation
+            const domicileChanged = scoreDomicile !== lastScores.domicile;
+            const exterieurChanged = scoreExterieur !== lastScores.exterieur;
+            lastScores = { domicile: scoreDomicile, exterieur: scoreExterieur };
+
+            // Chercher si le conteneur existe déjà
+            const container = document.getElementById('container');
+            const existingContainer = document.querySelector('.scores-container');
+            
+            if (existingContainer) {
+                // Mise à jour UNIQUEMENT les scores
+                const domBox = existingContainer.querySelector('#score-domicile');
+                const extBox = existingContainer.querySelector('#score-exterieur');
+                
+                if (domBox) {
+                    domBox.classList.remove('animation');
+                    domBox.querySelector('.score-number').textContent = scoreDomicile;
+                    if (domicileChanged) {
+                        domBox.offsetHeight; // Force reflow
+                        domBox.classList.add('animation');
+                    }
+                }
+                
+                if (extBox) {
+                    extBox.classList.remove('animation');
+                    extBox.querySelector('.score-number').textContent = scoreExterieur;
+                    if (exterieurChanged) {
+                        extBox.offsetHeight; // Force reflow
+                        extBox.classList.add('animation');
+                    }
+                }
+            } else {
+                // Première fois : créer la structure complète
+                const html = `
+                    <div class="scores-container">
+                        <div class="score-item ${domicileChanged ? 'animation' : ''}" id="score-domicile">
+                            <div class="team-label">${currentMatch.equipe_domicile}</div>
+                            <div class="score-number">${scoreDomicile}</div>
+                        </div>
+
+                        <div class="score-item ${exterieurChanged ? 'animation' : ''}" id="score-exterieur">
+                            <div class="team-label">${currentMatch.equipe_exterieur}</div>
+                            <div class="score-number">${scoreExterieur}</div>
+                        </div>
+                    </div>
+                `;
+
+                container.innerHTML = html;
+            }
+        }
+
+        function renderError(message) {
+            const html = `
+                <div class="error">
+                    <h2>${message}</h2>
+                    <p>Vérifiez les paramètres</p>
+                </div>
+            `;
+            document.getElementById('container').innerHTML = html;
+        }
+
+        function setStatus(status) {
+            const indicator = document.querySelector('.status');
+            indicator.className = 'status';
+            indicator.classList.add(status);
+        }
+
+        // ========================
+        // INITIALISATION
+        // ========================
+
+        fetchMatch();
+        setInterval(fetchMatch, POLL_INTERVAL);
+    </script>
+</body>
+</html>

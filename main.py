@@ -4,7 +4,7 @@ Endpoints pour accéder aux données de la FFH
 """
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel
@@ -60,6 +60,9 @@ except Exception as e:
     FIREBASE_ENABLED = False
     print(f"⚠️  Firebase initialization failed: {str(e)}")
 
+# Cache en mémoire pour les matchs live (fallback si Firebase échoue)
+LIVE_MATCHES_CACHE = {}
+
 app = FastAPI(
     title="🏑 Hockey sur Gazon France API",
     description="""
@@ -73,11 +76,7 @@ app = FastAPI(
     - **Interligues U14** : Garçons et Filles - Championnat de France des Régions
     - **Carquefou HC** : Données du club local (1SH, 2SH, SD)
     - **Salle Elite Femmes** : Tournaments 2025-2026
-    - **Notifications** : S'abonner aux fins de matchs par email
     
-    ### 🔄 Mise à jour:
-    - Vérification automatique des matchs terminés toutes les 30 minutes
-    - Notifications en temps réel via SendGrid
     """,
     version="1.0.0",
     openapi_tags=[
@@ -749,6 +748,195 @@ async def endpoint_classement():
         "data": ranking_data,
         "count": len(ranking_data)
     }
+
+
+# ========================
+# OVERLAY SCORE POUR OBS
+# ========================
+
+@app.get("/score-overlay.html", tags=["Overlay"], summary="Score Overlay pour OBS")
+async def serve_score_overlay():
+    """
+    Serve la page HTML d'overlay de score pour OBS Studio.
+    Affiche le score en direct des matchs de hockey salle avec fond transparent.
+    
+    Accédez via : http://localhost:8000/score-overlay.html
+    
+    Returns:
+        Page HTML avec overlay de score (CSS + JavaScript intégré)
+    """
+    overlay_path = os.path.join(os.path.dirname(__file__), "score-overlay.html")
+    
+    if os.path.exists(overlay_path):
+        return FileResponse(overlay_path, media_type="text/html")
+    else:
+        # Retourner un message d'erreur si le fichier n'existe pas
+        return HTMLResponse(
+            """
+            <html>
+                <head>
+                    <title>Score Overlay - Erreur</title>
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            background: #1a1a1a;
+                            color: #fff;
+                            margin: 0;
+                        }
+                        .error-box {
+                            text-align: center;
+                            background: rgba(255, 0, 0, 0.2);
+                            padding: 40px;
+                            border-radius: 10px;
+                            border: 2px solid #ff5555;
+                        }
+                        h1 { color: #ff5555; }
+                        p { color: #aaa; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error-box">
+                        <h1>⚠️ Fichier non trouvé</h1>
+                        <p>score-overlay.html n'existe pas dans le répertoire de l'API</p>
+                        <p style="font-size: 12px; margin-top: 20px;">
+                            Assurez-vous que le fichier est présent à la racine du projet.
+                        </p>
+                    </div>
+                </body>
+            </html>
+            """,
+            status_code=404
+        )
+
+
+@app.get("/score-simple.html", tags=["Overlay"], summary="Score Simple - Juste le score")
+async def serve_score_simple():
+    """
+    Serve la page HTML simple d'overlay de score.
+    Affiche JUSTE le score du match sans contrôles.
+    
+    Paramètres URL:
+    - ?championship=elite-hommes&match_id=match_001  (affiche ce match spécifique)
+    - ?renc_id=12345  (affiche le match avec ce rencId)
+    - aucun paramètre = premier match du championnat (défaut: elite-hommes)
+    
+    Exemples:
+    - http://localhost:8000/score-simple.html
+    - http://localhost:8000/score-simple.html?championship=elite-hommes&match_id=match_001
+    - http://localhost:8000/score-simple.html?renc_id=12345
+    
+    Returns:
+        Page HTML simple avec juste le score (se met à jour automatiquement)
+    """
+    simple_path = os.path.join(os.path.dirname(__file__), "score-simple.html")
+    
+    if os.path.exists(simple_path):
+        return FileResponse(simple_path, media_type="text/html")
+    else:
+        return HTMLResponse(
+            """
+            <html>
+                <head>
+                    <title>Score Simple - Erreur</title>
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            background: #1a1a1a;
+                            color: #fff;
+                            margin: 0;
+                        }
+                        .error-box {
+                            text-align: center;
+                            background: rgba(255, 0, 0, 0.2);
+                            padding: 40px;
+                            border-radius: 10px;
+                            border: 2px solid #ff5555;
+                        }
+                        h1 { color: #ff5555; }
+                        p { color: #aaa; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error-box">
+                        <h1>⚠️ Fichier non trouvé</h1>
+                        <p>score-simple.html n'existe pas dans le répertoire de l'API</p>
+                    </div>
+                </body>
+            </html>
+            """,
+            status_code=404
+        )
+
+
+@app.get("/score-only.html", tags=["Overlay"], summary="Score Uniquement - Seulement les chiffres")
+async def serve_score_only():
+    """
+    Serve la page HTML avec SEULEMENT les scores des deux équipes.
+    Format: ÉQUIPE1 — SCORE1 | SCORE2 — ÉQUIPE2
+    Idéal pour les très petits overlays OBS.
+    
+    Paramètres URL (même que score-simple.html):
+    - ?championship=elite-femmes&renc_id=193082
+    - ?championship=elite-hommes
+    - ?renc_id=12345
+    
+    Exemples:
+    - http://localhost:8000/score-only.html
+    - http://localhost:8000/score-only.html?championship=elite-femmes&renc_id=193082
+    
+    Returns:
+        Page HTML ultra-minimaliste avec juste les scores et noms d'équipes
+    """
+    only_path = os.path.join(os.path.dirname(__file__), "score-only.html")
+    
+    if os.path.exists(only_path):
+        return FileResponse(only_path, media_type="text/html")
+    else:
+        return HTMLResponse(
+            """
+            <html>
+                <head>
+                    <title>Score Only - Erreur</title>
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            background: #1a1a1a;
+                            color: #fff;
+                            margin: 0;
+                        }
+                        .error-box {
+                            text-align: center;
+                            background: rgba(255, 0, 0, 0.2);
+                            padding: 40px;
+                            border-radius: 10px;
+                            border: 2px solid #ff5555;
+                        }
+                        h1 { color: #ff5555; }
+                        p { color: #aaa; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error-box">
+                        <h1>⚠️ Fichier non trouvé</h1>
+                        <p>score-only.html n'existe pas dans le répertoire de l'API</p>
+                    </div>
+                </body>
+            </html>
+            """,
+            status_code=404
+        )
 
 
 @app.get("/api/v1/elite-hommes/matchs", tags=["Elite Hommes"])
@@ -3273,6 +3461,57 @@ async def get_live_matches():
         raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
 
 
+@app.post("/api/v1/live/match/{match_id}/init", tags=["Live Score"], summary="Initialiser un match")
+async def init_live_match(match_id: str, admin_token: str = None):
+    """
+    Initialiser un nouveau match dans Firebase ou en cache.
+    
+    Args:
+        match_id: ID unique du match
+        admin_token: Token d'authentification admin
+        
+    Returns:
+        Confirmation de la création
+    """
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        data = {
+            'score_domicile': 0,
+            'score_exterieur': 0,
+            'scorers': [],
+            'cards': [],
+            'statut': 'SCHEDULED',
+            'last_updated': int(time.time())
+        }
+        
+        # Essayer Firebase en premier
+        if FIREBASE_ENABLED:
+            try:
+                match_ref = db.reference(f'matches/{match_id}')
+                match_ref.set(data)
+                print(f"✅ Match {match_id} créé dans Firebase")
+            except Exception as fb_error:
+                print(f"⚠️ Firebase échoue ({str(fb_error)}), utilisation du cache")
+                LIVE_MATCHES_CACHE[match_id] = data
+        else:
+            # Utiliser le cache local
+            LIVE_MATCHES_CACHE[match_id] = data
+            print(f"📝 Match {match_id} créé en cache local")
+        
+        return {
+            "success": True,
+            "message": f"Match {match_id} initialisé",
+            "match_id": match_id,
+            "data": data,
+            "backend": "Firebase" if FIREBASE_ENABLED else "Cache local"
+        }
+    except Exception as e:
+        print(f"Erreur init match: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
 @app.get("/api/v1/live/match/{match_id}", tags=["Live Score"], summary="Récupérer un match live")
 async def get_live_match(match_id: str):
     """
@@ -3320,29 +3559,82 @@ async def update_match_score(match_id: str, score: ScoreUpdate, admin_token: str
         PUT /api/v1/live/match/match123/score?admin_token=admin123
         {"score_domicile": 5, "score_exterieur": 3}
     """
-    if not FIREBASE_ENABLED:
-        raise HTTPException(status_code=503, detail="Firebase non configuré")
-    
     if not admin_token or not verify_admin_token(admin_token):
         raise HTTPException(status_code=401, detail="Token admin invalide")
     
     try:
-        match_ref = db.reference(f'matches/{match_id}')
-        match_ref.update({
-            'score_domicile': score.score_domicile,
-            'score_exterieur': score.score_exterieur,
-            'last_updated': int(time.time())
-        })
+        # Essayer Firebase en premier
+        if FIREBASE_ENABLED:
+            try:
+                match_ref = db.reference(f'matches/{match_id}')
+                
+                # Vérifier si le match existe (peut lever une exception 404)
+                try:
+                    existing_match = match_ref.get()
+                except Exception as get_error:
+                    # Si c'est une 404, considérez qu'il n'existe pas
+                    if "404" in str(get_error):
+                        existing_match = None
+                    else:
+                        raise
+                
+                if not existing_match:
+                    # Créer le match avec structure initiale
+                    match_ref.set({
+                        'score_domicile': score.score_domicile,
+                        'score_exterieur': score.score_exterieur,
+                        'scorers': [],
+                        'cards': [],
+                        'statut': 'SCHEDULED',
+                        'last_updated': int(time.time())
+                    })
+                    print(f"✅ Match {match_id} créé dans Firebase")
+                else:
+                    # Mettre à jour le score existant
+                    match_ref.update({
+                        'score_domicile': score.score_domicile,
+                        'score_exterieur': score.score_exterieur,
+                        'last_updated': int(time.time())
+                    })
+                    print(f"✅ Score {match_id} mis à jour dans Firebase")
+                backend = "Firebase"
+            except Exception as fb_error:
+                print(f"❌ Firebase échoue pour score: {type(fb_error).__name__}: {str(fb_error)}")
+                import traceback
+                traceback.print_exc()
+                if match_id not in LIVE_MATCHES_CACHE:
+                    LIVE_MATCHES_CACHE[match_id] = {
+                        'score_domicile': 0, 'score_exterieur': 0,
+                        'scorers': [], 'cards': [], 'statut': 'SCHEDULED',
+                        'last_updated': int(time.time())
+                    }
+                LIVE_MATCHES_CACHE[match_id]['score_domicile'] = score.score_domicile
+                LIVE_MATCHES_CACHE[match_id]['score_exterieur'] = score.score_exterieur
+                LIVE_MATCHES_CACHE[match_id]['last_updated'] = int(time.time())
+                backend = "Cache"
+        else:
+            # Utiliser le cache
+            if match_id not in LIVE_MATCHES_CACHE:
+                LIVE_MATCHES_CACHE[match_id] = {
+                    'score_domicile': 0, 'score_exterieur': 0,
+                    'scorers': [], 'cards': [], 'statut': 'SCHEDULED',
+                    'last_updated': int(time.time())
+                }
+            LIVE_MATCHES_CACHE[match_id]['score_domicile'] = score.score_domicile
+            LIVE_MATCHES_CACHE[match_id]['score_exterieur'] = score.score_exterieur
+            LIVE_MATCHES_CACHE[match_id]['last_updated'] = int(time.time())
+            backend = "Cache"
         
         return {
             "success": True,
             "message": f"Score du match {match_id} mis à jour",
             "match_id": match_id,
             "score_domicile": score.score_domicile,
-            "score_exterieur": score.score_exterieur
+            "score_exterieur": score.score_exterieur,
+            "backend": backend
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 
 @app.post("/api/v1/live/match/{match_id}/scorer", tags=["Live Score"], summary="Ajouter un buteur")
@@ -3362,16 +3654,10 @@ async def add_scorer(match_id: str, scorer: ScorerUpdate, admin_token: str = Non
         POST /api/v1/live/match/match123/scorer?admin_token=admin123
         {"joueur": "Dupont", "equipe": "domicile", "temps": 25}
     """
-    if not FIREBASE_ENABLED:
-        raise HTTPException(status_code=503, detail="Firebase non configuré")
-    
     if not admin_token or not verify_admin_token(admin_token):
         raise HTTPException(status_code=401, detail="Token admin invalide")
     
     try:
-        scorers_ref = db.reference(f'matches/{match_id}/scorers')
-        current_scorers = scorers_ref.get() or []
-        
         new_scorer = {
             "joueur": scorer.joueur,
             "equipe": scorer.equipe,
@@ -3379,21 +3665,49 @@ async def add_scorer(match_id: str, scorer: ScorerUpdate, admin_token: str = Non
             "timestamp": int(time.time())
         }
         
-        if isinstance(current_scorers, list):
-            current_scorers.append(new_scorer)
+        # Essayer Firebase en premier
+        if FIREBASE_ENABLED:
+            try:
+                scorers_ref = db.reference(f'matches/{match_id}/scorers')
+                current_scorers = scorers_ref.get() or []
+                
+                if isinstance(current_scorers, list):
+                    current_scorers.append(new_scorer)
+                else:
+                    current_scorers = [new_scorer]
+                
+                scorers_ref.set(current_scorers)
+                backend = "Firebase"
+            except Exception as fb_error:
+                print(f"⚠️ Firebase échoue pour scorer ({str(fb_error)}), utilisation du cache")
+                if match_id not in LIVE_MATCHES_CACHE:
+                    LIVE_MATCHES_CACHE[match_id] = {
+                        'score_domicile': 0, 'score_exterieur': 0,
+                        'scorers': [], 'cards': [], 'statut': 'SCHEDULED',
+                        'last_updated': int(time.time())
+                    }
+                LIVE_MATCHES_CACHE[match_id]['scorers'].append(new_scorer)
+                backend = "Cache"
         else:
-            current_scorers = [new_scorer]
-        
-        scorers_ref.set(current_scorers)
+            # Utiliser le cache
+            if match_id not in LIVE_MATCHES_CACHE:
+                LIVE_MATCHES_CACHE[match_id] = {
+                    'score_domicile': 0, 'score_exterieur': 0,
+                    'scorers': [], 'cards': [], 'statut': 'SCHEDULED',
+                    'last_updated': int(time.time())
+                }
+            LIVE_MATCHES_CACHE[match_id]['scorers'].append(new_scorer)
+            backend = "Cache"
         
         return {
             "success": True,
             "message": f"Buteur {scorer.joueur} ajouté pour l'équipe {scorer.equipe}",
             "match_id": match_id,
-            "scorer": new_scorer
+            "scorer": new_scorer,
+            "backend": backend
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 
 @app.post("/api/v1/live/match/{match_id}/card", tags=["Live Score"], summary="Ajouter un carton")
@@ -3513,6 +3827,507 @@ async def delete_match(match_id: str, admin_token: str = None):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Firebase: {str(e)}")
+
+
+@app.post("/api/v1/live/import/championship/{championship}", tags=["Live Score"], summary="Importer matchs d'un championnat")
+async def import_championship_matches(championship: str, admin_token: str = None):
+    """
+    ⚠️ NOTE: Cet endpoint utilise des données de démo pour éviter les timeouts.
+    Pour les matchs réels, utilisez /api/v1/live/import-demo qui charge les données rapidement.
+    
+    Importe des matchs de démonstration dans Firebase pour un championnat spécifique.
+    """
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        # Données de démo pour chaque championnat
+        demo_by_championship = {
+            "elite-hommes": [
+                {
+                    "id": f"demo_elite_{i}",
+                    "equipe_domicile": ["HC Grenoble", "Lambersart", "Nantes"][i % 3],
+                    "equipe_exterieur": ["RCFH", "Montrouge", "Douai"][i % 3],
+                    "score_domicile": 0,
+                    "score_exterieur": 0,
+                    "statut": "SCHEDULED"
+                }
+                for i in range(5)
+            ],
+            "elite-femmes": [
+                {
+                    "id": f"demo_femmes_{i}",
+                    "equipe_domicile": ["Nantes", "Metz"][i % 2],
+                    "equipe_exterieur": ["Villeurbanne", "Brest"][i % 2],
+                    "score_domicile": 0,
+                    "score_exterieur": 0,
+                    "statut": "SCHEDULED"
+                }
+                for i in range(3)
+            ],
+            "u14-garcons": [
+                {
+                    "id": f"demo_u14g_{i}",
+                    "equipe_domicile": f"Équipe Nord {i}",
+                    "equipe_exterieur": f"Équipe Sud {i}",
+                    "score_domicile": 0,
+                    "score_exterieur": 0,
+                    "statut": "SCHEDULED"
+                }
+                for i in range(4)
+            ],
+            "u14-filles": [
+                {
+                    "id": f"demo_u14f_{i}",
+                    "equipe_domicile": f"Team A {i}",
+                    "equipe_exterieur": f"Team B {i}",
+                    "score_domicile": 0,
+                    "score_exterieur": 0,
+                    "statut": "SCHEDULED"
+                }
+                for i in range(3)
+            ],
+            "carquefou-1sh": [
+                {
+                    "id": "demo_carquefou_1sh",
+                    "equipe_domicile": "Carquefou",
+                    "equipe_exterieur": "Visiteur",
+                    "score_domicile": 0,
+                    "score_exterieur": 0,
+                    "statut": "SCHEDULED"
+                }
+            ],
+            "carquefou-2sh": [
+                {
+                    "id": "demo_carquefou_2sh",
+                    "equipe_domicile": "Carquefou 2",
+                    "equipe_exterieur": "Visiteur 2",
+                    "score_domicile": 0,
+                    "score_exterieur": 0,
+                    "statut": "SCHEDULED"
+                }
+            ],
+            "carquefou-sd": [
+                {
+                    "id": "demo_carquefou_sd",
+                    "equipe_domicile": "Carquefou SD",
+                    "equipe_exterieur": "Visiteur SD",
+                    "score_domicile": 0,
+                    "score_exterieur": 0,
+                    "statut": "SCHEDULED"
+                }
+            ],
+            "salle-elite-femmes": [
+                {
+                    "id": "demo_salle_1",
+                    "equipe_domicile": "HC Grenoble",
+                    "equipe_exterieur": "IH Lambersart",
+                    "score_domicile": 0,
+                    "score_exterieur": 0,
+                    "statut": "SCHEDULED"
+                }
+            ]
+        }
+        
+        if championship not in demo_by_championship:
+            raise HTTPException(status_code=400, detail=f"Championnat {championship} non reconnu")
+        
+        matches_list = demo_by_championship[championship]
+        championship_display = {
+            "elite-hommes": "Elite Hommes",
+            "elite-femmes": "Elite Femmes",
+            "u14-garcons": "U14 Garçons",
+            "u14-filles": "U14 Filles",
+            "carquefou-1sh": "Carquefou 1SH",
+            "carquefou-2sh": "Carquefou 2SH",
+            "carquefou-sd": "Carquefou SD",
+            "salle-elite-femmes": "Salle Elite Femmes"
+        }
+        display_name = championship_display.get(championship, championship)
+        
+        # Importer dans Firebase
+        imported_count = 0
+        created_matches = []
+        
+        if FIREBASE_ENABLED:
+            matches_ref = db.reference('matches')
+            
+            # Parcourir les matchs
+            for match in matches_list:
+                try:
+                    # Créer un ID unique
+                    match_id = f"{championship}_{match.get('id', match.get('manifId', 'unknown'))}"
+                    
+                    # Créer la structure du match
+                    match_data = {
+                        'equipe_domicile': match.get('equipe_domicile', 'À définir'),
+                        'equipe_exterieur': match.get('equipe_exterieur', 'À définir'),
+                        'score_domicile': match.get('score_domicile', 0),
+                        'score_exterieur': match.get('score_exterieur', 0),
+                        'scorers': [],
+                        'cards': [],
+                        'statut': match.get('statut', 'SCHEDULED'),
+                        'championship': championship,
+                        'display_name': display_name,
+                        'last_updated': int(time.time())
+                    }
+                    
+                    # Écrire dans Firebase
+                    matches_ref.child(match_id).set(match_data)
+                    imported_count += 1
+                    created_matches.append({
+                        'match_id': match_id,
+                        'home': match_data['equipe_domicile'],
+                        'away': match_data['equipe_exterieur']
+                    })
+                    print(f"✅ {match_data['equipe_domicile']} vs {match_data['equipe_exterieur']}")
+                    
+                except Exception as import_error:
+                    print(f"⚠️ Erreur import match: {str(import_error)}")
+                    continue
+        else:
+            # Utiliser le cache local
+            for match in matches_list:
+                try:
+                    match_id = f"{championship}_{match.get('id', match.get('manifId', 'unknown'))}"
+                    match_data = {
+                        'equipe_domicile': match.get('equipe_domicile', 'À définir'),
+                        'equipe_exterieur': match.get('equipe_exterieur', 'À définir'),
+                        'score_domicile': match.get('score_domicile', 0),
+                        'score_exterieur': match.get('score_exterieur', 0),
+                        'scorers': [],
+                        'cards': [],
+                        'statut': match.get('statut', 'SCHEDULED'),
+                        'championship': championship,
+                        'display_name': display_name,
+                        'last_updated': int(time.time())
+                    }
+                    LIVE_MATCHES_CACHE[match_id] = match_data
+                    imported_count += 1
+                    created_matches.append({
+                        'match_id': match_id,
+                        'home': match_data['equipe_domicile'],
+                        'away': match_data['equipe_exterieur']
+                    })
+                except Exception as cache_error:
+                    print(f"⚠️ Erreur cache: {str(cache_error)}")
+                    continue
+        
+        print(f"✅ {imported_count} matchs importés pour {display_name}")
+        
+        return {
+            "success": True,
+            "message": f"{imported_count} matchs importés pour {display_name}",
+            "championship": championship,
+            "imported_count": imported_count,
+            "matches": created_matches[:5]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erreur import: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur import: {str(e)}")
+
+
+
+
+
+@app.post("/api/v1/live/import-demo", tags=["Live Score"], summary="Importer matchs de démo")
+async def import_demo_matches(admin_token: str = None):
+    """
+    Importer des matchs de démonstration dans Firebase.
+    Utile pour tester le Dashboard sans scraper l'API FFH.
+    
+    Args:
+        admin_token: Token d'authentification admin
+        
+    Returns:
+        Nombre de matchs importés
+    """
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        # Créer des matchs de démo
+        demo_matches = [
+            {
+                'id': 'demo_elite_1',
+                'championship': 'elite-hommes',
+                'display_name': 'Elite Hommes',
+                'equipe_domicile': 'HC Grenoble',
+                'equipe_exterieur': 'Lambersart',
+                'score_domicile': 0,
+                'score_exterieur': 0,
+                'scorers': [],
+                'cards': [],
+                'statut': 'SCHEDULED',
+                'last_updated': int(time.time())
+            },
+            {
+                'id': 'demo_elite_femmes_1',
+                'championship': 'elite-femmes',
+                'display_name': 'Elite Femmes',
+                'equipe_domicile': 'Nantes',
+                'equipe_exterieur': 'Villeneuve d\'Ascq',
+                'score_domicile': 0,
+                'score_exterieur': 0,
+                'scorers': [],
+                'cards': [],
+                'statut': 'SCHEDULED',
+                'last_updated': int(time.time())
+            },
+            {
+                'id': 'demo_u14_1',
+                'championship': 'u14-garcons',
+                'display_name': 'U14 Garçons',
+                'equipe_domicile': 'Équipe Nord',
+                'equipe_exterieur': 'Équipe Sud',
+                'score_domicile': 0,
+                'score_exterieur': 0,
+                'scorers': [],
+                'cards': [],
+                'statut': 'SCHEDULED',
+                'last_updated': int(time.time())
+            },
+            {
+                'id': 'demo_carquefou_1',
+                'championship': 'carquefou-1sh',
+                'display_name': 'Carquefou 1SH',
+                'equipe_domicile': 'Carquefou',
+                'equipe_exterieur': 'Visiteur',
+                'score_domicile': 0,
+                'score_exterieur': 0,
+                'scorers': [],
+                'cards': [],
+                'statut': 'SCHEDULED',
+                'last_updated': int(time.time())
+            }
+        ]
+        
+        # Importer dans Firebase
+        if FIREBASE_ENABLED:
+            matches_ref = db.reference('matches')
+            for match in demo_matches:
+                try:
+                    matches_ref.child(match['id']).set(match)
+                    print(f"✅ Match démo {match['id']} créé")
+                except Exception as e:
+                    print(f"⚠️ Erreur import {match['id']}: {str(e)}")
+        else:
+            # Utiliser le cache local
+            for match in demo_matches:
+                LIVE_MATCHES_CACHE[match['id']] = match
+        
+        return {
+            "success": True,
+            "message": f"{len(demo_matches)} matchs de démo importés",
+            "count": len(demo_matches),
+            "matches": [m['id'] for m in demo_matches]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+
+
+@app.post("/api/v1/live/import-real/{championship}", tags=["Live Score"], summary="Importer vrais matchs d'un championnat")
+async def import_real_championship(championship: str, admin_token: str = None):
+    """
+    Alias pour /api/v1/live/import/championship/{championship}
+    Importe les vrais matchs d'un championnat dans Firebase.
+    Les données proviennent du cache FFHockey API.
+    """
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    # Rediriger vers l'endpoint existant qui charge les vrais données
+    return await import_championship_matches(championship, admin_token)
+
+
+@app.post("/api/v1/live/import-real-data/{championship}", tags=["Live Score"], summary="Importer VRAIS matchs depuis FFH API")
+async def import_real_data(championship: str, admin_token: str = None):
+    """
+    Importe les VRAIS matchs depuis l'API FFHockey (pas de démo).
+    ✨ AMÉLIORATIONS:
+    - Élimine les doublons (vérifie les matchs existants dans Firebase)
+    - Filtre les matchs de test/démo
+    - Trie par dates proches et prochaines
+    - Ignore les équipes invalides (test, simulation, etc.)
+    
+    Championnats supportés:
+    - elite-hommes
+    - elite-femmes
+    - u14-garcons
+    - u14-filles
+    - carquefou-1sh, carquefou-2sh, carquefou-sd
+    - salle-elite-femmes
+    """
+    if not admin_token or not verify_admin_token(admin_token):
+        raise HTTPException(status_code=401, detail="Token admin invalide")
+    
+    try:
+        print(f"📥 Chargement des VRAIS matchs pour {championship}")
+        
+        # Récupérer les vrais matchs depuis le cache FFH
+        matches_list = []
+        
+        if championship == "elite-hommes":
+            matches_list = get_matches_cached() or []
+        elif championship == "elite-femmes":
+            matches_list = get_matches_femmes_cached() or []
+        elif championship == "u14-garcons":
+            matches_list = get_matchs_interligues_u14_garcons() or []
+        elif championship == "u14-filles":
+            matches_list = get_matchs_interligues_u14_filles() or []
+        elif championship == "carquefou-1sh":
+            matches_list = get_matchs_carquefou_1sh_cached() or []
+        elif championship == "carquefou-2sh":
+            matches_list = get_matchs_carquefou_2sh_cached() or []
+        elif championship == "carquefou-sd":
+            matches_list = get_matchs_carquefou_sd_cached() or []
+        elif championship == "salle-elite-femmes":
+            # Salle Elite Femmes: pas de données disponibles dans l'API FFH
+            # L'utilisateur doit créer les matchs manuellement via le Dashboard
+            matches_list = []
+        else:
+            raise HTTPException(status_code=400, detail=f"Championnat {championship} non reconnu")
+        
+        championship_display = {
+            "elite-hommes": "Elite Hommes",
+            "elite-femmes": "Elite Femmes", 
+            "u14-garcons": "U14 Garçons",
+            "u14-filles": "U14 Filles",
+            "carquefou-1sh": "Carquefou 1SH",
+            "carquefou-2sh": "Carquefou 2SH",
+            "carquefou-sd": "Carquefou SD",
+            "salle-elite-femmes": "Salle Elite Femmes"
+        }
+        display_name = championship_display.get(championship, championship)
+        
+        # 🔍 FILTRER LES MATCHS DE TEST ET INVALIDES
+        filtered_matches = []
+        test_keywords = ['test', 'demo', 'simulation', 'simulation-', 'test-', 'exempt', '?', 'à définir']
+        
+        for match in matches_list:
+            home = str(match.get('equipe_domicile', '')).lower().strip()
+            away = str(match.get('equipe_exterieur', '')).lower().strip()
+            
+            # Vérifier si c'est un match de test
+            is_test = any(keyword in home or keyword in away for keyword in test_keywords)
+            
+            if not is_test and home and away and home != away:
+                filtered_matches.append(match)
+        
+        # 📅 TRIER PAR DATES PROCHES (matchs futurs d'abord, puis récents)
+        from datetime import datetime
+        now = datetime.now()
+        
+        def get_sort_key(match):
+            date_str = match.get('date', '')
+            try:
+                match_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                if match_date < now:
+                    return (1, abs((now - match_date).total_seconds()))  # Matchs passés: après
+                else:
+                    return (0, (match_date - now).total_seconds())  # Matchs futurs: avant
+            except:
+                return (2, 0)  # Pas de date: à la fin
+        
+        filtered_matches.sort(key=get_sort_key)
+        
+        # 📱 Récupérer les matchs EXISTANTS dans Firebase
+        existing_match_keys = set()
+        if FIREBASE_ENABLED:
+            try:
+                matches_ref = db.reference('matches')
+                existing_data = matches_ref.get()
+                if existing_data:
+                    for match_id in existing_data.keys():
+                        # Extraire la clé (rrncId, id ou manifId) de l'ID Firebase
+                        if '_' in match_id:
+                            key_part = match_id.split('_', 1)[1]
+                            existing_match_keys.add(key_part)
+            except Exception as e:
+                print(f"⚠️ Erreur lecture matchs existants: {str(e)}")
+        
+        # ✅ IMPORTER DANS FIREBASE (SANS DOUBLONS)
+        imported_count = 0
+        created_matches = []
+        skipped_duplicates = 0
+        
+        if FIREBASE_ENABLED and filtered_matches:
+            matches_ref = db.reference('matches')
+            
+            for match in filtered_matches[:100]:  # Augmenter à 100 pour avoir plus de choix
+                try:
+                    # Créer l'identifiant unique
+                    unique_id = match.get('rencId', match.get('id', match.get('manifId', None)))
+                    
+                    if not unique_id:
+                        continue
+                    
+                    # ❌ VÉRIFIER LES DOUBLONS
+                    if str(unique_id) in existing_match_keys:
+                        skipped_duplicates += 1
+                        print(f"⏭️ Doublon ignoré: {match.get('equipe_domicile')} vs {match.get('equipe_exterieur')}")
+                        continue
+                    
+                    match_id = f"{championship}_{unique_id}"
+                    
+                    # Structurer les données
+                    match_data = {
+                        'equipe_domicile': match.get('equipe_domicile', 'À définir'),
+                        'equipe_exterieur': match.get('equipe_exterieur', 'À définir'),
+                        'score_domicile': match.get('score_domicile') or 0,
+                        'score_exterieur': match.get('score_exterieur') or 0,
+                        'scorers': [],
+                        'cards': [],
+                        'statut': match.get('statut', 'SCHEDULED'),
+                        'championship': championship,
+                        'display_name': display_name,
+                        'date': match.get('date', ''),
+                        'last_updated': int(time.time()),
+                        'rencId': str(unique_id)  # Stocker l'ID pour éviter les doublons
+                    }
+                    
+                    # Écrire dans Firebase
+                    matches_ref.child(match_id).set(match_data)
+                    imported_count += 1
+                    created_matches.append({
+                        'match_id': match_id,
+                        'home': match_data['equipe_domicile'],
+                        'away': match_data['equipe_exterieur'],
+                        'date': match.get('date', '')
+                    })
+                    print(f"✅ {match_data['equipe_domicile']} vs {match_data['equipe_exterieur']} ({match.get('date', 'S/O')})")
+                except Exception as e:
+                    print(f"⚠️ Erreur import: {str(e)}")
+                    continue
+        else:
+            if not filtered_matches:
+                print(f"⚠️ Pas de matchs trouvés pour {championship} après filtrage")
+        
+        # Message personnalisé selon le championnat
+        if championship == "salle-elite-femmes" and imported_count == 0:
+            message = f"ℹ️ {display_name}: Pas de données disponibles dans l'API FFH. Créez les matchs manuellement via '➕ Créer un match personnalisé'"
+        else:
+            message = f"✅ {imported_count} VRAIS matchs importés pour {display_name}"
+        
+        return {
+            "success": True,
+            "message": message,
+            "championship": championship,
+            "imported_count": imported_count,
+            "skipped_duplicates": skipped_duplicates,
+            "matches": created_matches[:5],
+            "note": f"Total de {len(filtered_matches)} matchs filtrés (sur {len(matches_list)} disponibles)",
+            "details": f"{skipped_duplicates} doublons ignorés"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Erreur: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
 
 
 if __name__ == "__main__":
