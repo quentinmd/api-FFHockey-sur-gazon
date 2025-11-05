@@ -217,7 +217,8 @@
 
     <script>
         // Configuration
-        const API_BASE = 'http://localhost:8000/api/v1';
+        // Auto-detect API base URL (works on localhost, Fly.io, and any domain)
+        const API_BASE = window.location.origin + '/api/v1';
         const POLL_INTERVAL = 5000; // 5 secondes
 
         // Récupérer les paramètres de l'URL
