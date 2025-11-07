@@ -4,6 +4,7 @@ import Classement from './components/Classement';
 import Matchs from './components/Matchs';
 import CompetitionSelector from './components/CompetitionSelector';
 import Newsletter from './components/Newsletter';
+import LiveScoreAdminV2 from './components/LiveScoreAdminV2';
 import './App.css';
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('classement');
+  const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard' ou 'live-admin'
 
   useEffect(() => {
     fetchData(selectedCompetition);
@@ -92,62 +94,86 @@ function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>🏑 FFH Hockey Dashboard</h1>
-        <p>Suivez les championnats français de hockey sur gazon</p>
-      </header>
-
-      <main className="app-main">
-        <CompetitionSelector
-          competitions={COMPETITIONS}
-          selected={selectedCompetition}
-          onSelect={setSelectedCompetition}
-        />
-
-        {loading ? (
-          <div className="loading">
-            <div className="spinner"></div>
-            <p>Chargement des données...</p>
-          </div>
-        ) : error ? (
-          <div className="error">
-            <p>{error}</p>
-          </div>
-        ) : (
-          <div>
-            <div className="tabs">
-              {selectedCompetition !== 'carquefou-sd' && selectedCompetition !== 'interligues-u14-garcons' && selectedCompetition !== 'interligues-u14-garcons-poule-a' && selectedCompetition !== 'interligues-u14-garcons-poule-b' && (
-                <button
-                  className={`tab-button ${activeTab === 'classement' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('classement')}
-                >
-                  Classement
-                </button>
-              )}
-              <button
-                className={`tab-button ${activeTab === 'matchs' ? 'active' : ''}`}
-                onClick={() => setActiveTab('matchs')}
-              >
-                Matchs
-              </button>
+      {currentPage === 'dashboard' ? (
+        <>
+          <header className="app-header">
+            <div className="header-content">
+              <h1>🏑 FFH Hockey Dashboard</h1>
+              <p>Suivez les championnats français de hockey sur gazon</p>
             </div>
+            <button 
+              className="admin-btn" 
+              onClick={() => setCurrentPage('live-admin')}
+              title="Accéder au tableau de bord admin pour modifier les scores"
+            >
+              ⚙️ Dashboard Admin
+            </button>
+          </header>
 
-            <div className="tab-content">
-              {activeTab === 'classement' && classement && (
-                <Classement data={classement} competition={COMPETITIONS[selectedCompetition]} />
-              )}
-              {activeTab === 'matchs' && matchs && (
-                <Matchs data={matchs} competition={COMPETITIONS[selectedCompetition]} />
-              )}
-            </div>
-          </div>
-        )}
-      </main>
+          <main className="app-main">
+            <CompetitionSelector
+              competitions={COMPETITIONS}
+              selected={selectedCompetition}
+              onSelect={setSelectedCompetition}
+            />
 
-      <footer className="app-footer">
-        <Newsletter />
-        <p>© 2024 FFH Hockey Dashboard</p>
-      </footer>
+            {loading ? (
+              <div className="loading">
+                <div className="spinner"></div>
+                <p>Chargement des données...</p>
+              </div>
+            ) : error ? (
+              <div className="error">
+                <p>{error}</p>
+              </div>
+            ) : (
+              <div>
+                <div className="tabs">
+                  {selectedCompetition !== 'carquefou-sd' && selectedCompetition !== 'interligues-u14-garcons' && selectedCompetition !== 'interligues-u14-garcons-poule-a' && selectedCompetition !== 'interligues-u14-garcons-poule-b' && (
+                    <button
+                      className={`tab-button ${activeTab === 'classement' ? 'active' : ''}`}
+                      onClick={() => setActiveTab('classement')}
+                    >
+                      Classement
+                    </button>
+                  )}
+                  <button
+                    className={`tab-button ${activeTab === 'matchs' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('matchs')}
+                  >
+                    Matchs
+                  </button>
+                </div>
+
+                <div className="tab-content">
+                  {activeTab === 'classement' && classement && (
+                    <Classement data={classement} competition={COMPETITIONS[selectedCompetition]} />
+                  )}
+                  {activeTab === 'matchs' && matchs && (
+                    <Matchs data={matchs} competition={COMPETITIONS[selectedCompetition]} />
+                  )}
+                </div>
+              </div>
+            )}
+          </main>
+
+          <footer className="app-footer">
+            <Newsletter />
+            <p>© 2024 FFH Hockey Dashboard</p>
+          </footer>
+        </>
+      ) : (
+        <>
+          <button 
+            className="back-btn" 
+            onClick={() => setCurrentPage('dashboard')}
+            style={{ position: 'fixed', top: 20, left: 20, zIndex: 1000 }}
+          >
+            ← Retour au Dashboard
+          </button>
+          <LiveScoreAdminV2 />
+        </>
+      )}
     </div>
   );
 }

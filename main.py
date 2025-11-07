@@ -1185,26 +1185,34 @@ async def endpoint_matchs_elite_femmes_salle():
         matches_data = get_matchs_salle_elite_femmes_cached()
         
         # ✅ Sauvegarder automatiquement dans Firebase
+        print(f"🔍 FIREBASE_ENABLED: {FIREBASE_ENABLED}")
         if FIREBASE_ENABLED:
             try:
                 from firebase_admin import db as firebase_db
-                for match in matches_data:
+                print(f"📤 Début de sauvegarde de {len(matches_data)} matchs...")
+                for i, match in enumerate(matches_data):
                     match_id = f"salle-elite-femmes_{match.get('rencId', match.get('id', ''))}"
                     match_data = {
                         "championship": "salle-elite-femmes",
                         "equipe_domicile": match.get("equipe_domicile", "?"),
                         "equipe_exterieur": match.get("equipe_exterieur", "?"),
-                        "score_domicile": int(match.get("score_domicile", 0)),
-                        "score_exterieur": int(match.get("score_exterieur", 0)),
+                        "score_domicile": match.get("score_domicile") or 0,
+                        "score_exterieur": match.get("score_exterieur") or 0,
                         "statut": match.get("statut", "SCHEDULED"),
                         "date": match.get("date", ""),
                         "rencId": match.get("rencId", match.get("id", "")),
                         "last_updated": int(time.time())
                     }
+                    if i < 2:
+                        print(f"   Envoi {i+1}: {match_id}")
                     firebase_db.reference(f'matches/{match_id}').set(match_data)
                 print(f"✅ {len(matches_data)} matchs Elite Femmes Salle sauvegardés dans Firebase")
             except Exception as firebase_error:
-                print(f"⚠️  Erreur Firebase (non-bloquante): {str(firebase_error)}")
+                print(f"⚠️  Erreur Firebase (non-bloquante): {type(firebase_error).__name__}: {str(firebase_error)}")
+                import traceback
+                print(traceback.format_exc())
+        else:
+            print(f"⚠️  Firebase désactivé - Pas de sauvegarde")
         
         # Vérifier et notifier les matchs terminés
         check_and_notify_finished_matches(matches_data, "salle-elite-femmes", "Elite Femmes Salle")
@@ -1220,6 +1228,65 @@ async def endpoint_matchs_elite_femmes_salle():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs Elite Femmes Salle: {str(e)}")
+
+
+@app.post("/api/v1/debug/sync-salle-elite-femmes", tags=["Debug"])
+async def debug_sync_salle_elite_femmes():
+    """
+    Endpoint de debug pour forcer la synchronisation des matchs Salle Elite Femmes vers Firebase.
+    """
+    # Vider la cache d'abord
+    cache_dynamic.pop("matchs_salle_elite_femmes", None)
+    
+    matches_data = get_matchs_salle_elite_femmes_cached()
+    
+    sync_count = 0
+    errors = []
+    
+    if FIREBASE_ENABLED:
+        try:
+            from firebase_admin import db as firebase_db
+            for match in matches_data:
+                try:
+                    match_id = f"salle-elite-femmes_{match.get('rencId', match.get('id', ''))}"
+                    
+                    # DEBUG: Vérifier les types
+                    score_d = match.get("score_domicile")
+                    score_e = match.get("score_exterieur")
+                    
+                    # Conversion sûre
+                    score_d_final = score_d if score_d is not None else 0
+                    score_e_final = score_e if score_e is not None else 0
+                    
+                    match_data = {
+                        "championship": "salle-elite-femmes",
+                        "equipe_domicile": match.get("equipe_domicile", "?"),
+                        "equipe_exterieur": match.get("equipe_exterieur", "?"),
+                        "score_domicile": score_d_final,
+                        "score_exterieur": score_e_final,
+                        "statut": match.get("statut", "SCHEDULED"),
+                        "date": match.get("date", ""),
+                        "rencId": match.get("rencId", match.get("id", "")),
+                        "last_updated": int(time.time())
+                    }
+                    firebase_db.reference(f'matches/{match_id}').set(match_data)
+                    sync_count += 1
+                except Exception as e:
+                    errors.append(f"{match.get('rencId')}: {type(e).__name__}: {str(e)}")
+                    # DEBUG: Ajouter la stack trace
+                    import traceback
+                    errors.append(traceback.format_exc())
+        except Exception as e:
+            errors.append(f"Firebase error: {str(e)}")
+    else:
+        errors.append("Firebase not enabled")
+    
+    return {
+        "success": len(errors) == 0,
+        "synced_count": sync_count,
+        "total_matches": len(matches_data),
+        "errors": errors[:10]  # Limiter à 10 erreurs
+    }
 
 
 @app.get("/api/v1/carquefou/sd/matchs", tags=["Carquefou HC"])

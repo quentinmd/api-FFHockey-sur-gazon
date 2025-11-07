@@ -9,7 +9,7 @@ const firebaseConfig = {
   storageBucket: "api-ffhockey.firebasestorage.app",
   messagingSenderId: "1082868024477",
   appId: "1:1082868024477:web:b191e554613796c6d88074",
-  databaseURL: "https://api-ffhockey.firebaseio.com"
+  databaseURL: "https://api-ffhockey-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
 // Initialize Firebase
