@@ -4142,9 +4142,8 @@ async def import_real_data(championship: str, admin_token: str = None):
         elif championship == "carquefou-sd":
             matches_list = get_matchs_carquefou_sd_cached() or []
         elif championship == "salle-elite-femmes":
-            # Salle Elite Femmes: pas de données disponibles dans l'API FFH
-            # L'utilisateur doit créer les matchs manuellement via le Dashboard
-            matches_list = []
+            # ✨ Salle Elite Femmes: données réelles depuis FFHockey (ManifId=4403)
+            matches_list = get_matchs_salle_elite_femmes_cached() or []
         else:
             raise HTTPException(status_code=400, detail=f"Championnat {championship} non reconnu")
         
@@ -4195,7 +4194,8 @@ async def import_real_data(championship: str, admin_token: str = None):
         existing_match_keys = set()
         if FIREBASE_ENABLED:
             try:
-                matches_ref = db.reference('matches')
+                from firebase_admin import db as firebase_db
+                matches_ref = firebase_db.reference('matches')
                 existing_data = matches_ref.get()
                 if existing_data:
                     for match_id in existing_data.keys():
@@ -4212,7 +4212,8 @@ async def import_real_data(championship: str, admin_token: str = None):
         skipped_duplicates = 0
         
         if FIREBASE_ENABLED and filtered_matches:
-            matches_ref = db.reference('matches')
+            from firebase_admin import db as firebase_db
+            matches_ref = firebase_db.reference('matches')
             
             for match in filtered_matches[:100]:  # Augmenter à 100 pour avoir plus de choix
                 try:
@@ -4246,8 +4247,8 @@ async def import_real_data(championship: str, admin_token: str = None):
                         'rencId': str(unique_id)  # Stocker l'ID pour éviter les doublons
                     }
                     
-                    # Écrire dans Firebase
-                    matches_ref.child(match_id).set(match_data)
+                    # Écrire dans Firebase (format Firebase Admin SDK)
+                    firebase_db.reference(f'matches/{match_id}').set(match_data)
                     imported_count += 1
                     created_matches.append({
                         'match_id': match_id,
