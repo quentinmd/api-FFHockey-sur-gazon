@@ -28,7 +28,8 @@ from scraper import (
     get_ranking_femmes, get_matches_femmes,
     get_classement_carquefou_1sh, get_matchs_carquefou_1sh,
     get_classement_carquefou_2sh, get_matchs_carquefou_2sh,
-    get_matchs_carquefou_sd
+    get_matchs_carquefou_sd,
+    get_classement_salle_elite_femmes, get_matchs_salle_elite_femmes
 )
 
 # Charger les variables d'environnement depuis le fichier .env
@@ -773,6 +774,24 @@ def get_matchs_carquefou_sd_cached():
     return cache_dynamic[cache_key]
 
 
+def get_classement_salle_elite_femmes_cached():
+    """Wrapper avec cache pour get_classement_salle_elite_femmes()"""
+    cache_key = "classement_salle_elite_femmes"
+    if cache_key not in cache_dynamic:
+        result = get_classement_salle_elite_femmes()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+
+def get_matchs_salle_elite_femmes_cached():
+    """Wrapper avec cache pour get_matchs_salle_elite_femmes()"""
+    cache_key = "matchs_salle_elite_femmes"
+    if cache_key not in cache_dynamic:
+        result = get_matchs_salle_elite_femmes()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+
 
 async def endpoint_classement():
     """
@@ -1074,55 +1093,69 @@ async def endpoint_matchs_femmes():
 async def endpoint_classement_elite_femmes_salle():
     """
     Récupère le classement de l'élite femmes en salle.
-    Les données sont actuellement des valeurs par défaut (0 point) en attente des résultats des tournois.
+    Les données sont calculées automatiquement depuis les matchs réels FFHockey.
+    Système de points: Victoire=3pts, Nul=1pt, Défaite=0pts
+    Critères de départage: Différence de buts, puis buts marqués
     
-    Équipes du championnat:
-    - HC Grenoble, IH Lambersart, AS Villeurbanne EL, PHC Marcq en Baroeul
-    - Cambrai HC, Blanc Mesnil SH, Carquefou HC, La Baule OHC
-    - CA Montrouge 92, Villa Primrose
+    Championnat 2025-2026:
+    - Tournoi 1 : 13/14 décembre (Villeurbanne)
+    - Tournoi 2 : 3/4 janvier (Carquefou)
+    
+    Équipes: HC Grenoble, IH Lambersart, AS Villeurbanne EL, PHC Marcq en Baroeul,
+    Cambrai HC, Blanc Mesnil SH, Carquefou HC, La Baule OHC, CA Montrouge 92, Villa Primrose
     
     Returns:
-        Liste des équipes avec leurs statistiques (0 point pour l'instant)
+        Classement calculé des équipes Elite Femmes Salle
     """
     try:
-        # Équipes du championnat Elite Femmes Salle
-        teams = [
-            "HC Grenoble",
-            "IH Lambersart",
-            "AS Villeurbanne EL",
-            "PHC Marcq en Baroeul",
-            "Cambrai HC",
-            "Blanc Mesnil SH",
-            "Carquefou HC",
-            "La Baule OHC",
-            "CA Montrouge 92",
-            "Villa Primrose"
-        ]
+        ranking_data = get_classement_salle_elite_femmes_cached()
         
-        # Initialiser le classement avec 0 point
-        classement = []
-        for rank, team in enumerate(teams, 1):
-            classement.append({
-                "rang": rank,
-                "equipe": team,
-                "points": 0,
-                "matchs_joues": 0,
-                "victoires": 0,
-                "nuls": 0,
-                "defaites": 0,
-                "buts_pour": 0,
-                "buts_contre": 0,
-                "difference_buts": 0,
-                "statut": "avant tournoi"
-            })
+        if not ranking_data:
+            # Si pas de matchs joués encore, retourner les équipes avec 0 point
+            teams = [
+                "HC Grenoble",
+                "IH Lambersart",
+                "AS Villeurbanne EL",
+                "PHC Marcq en Baroeul",
+                "Cambrai HC",
+                "Blanc Mesnil SH",
+                "Carquefou HC",
+                "La Baule OHC",
+                "CA Montrouge 92",
+                "Villa Primrose"
+            ]
+            
+            classement = []
+            for rank, team in enumerate(teams, 1):
+                classement.append({
+                    "position": rank,
+                    "equipe": team,
+                    "points": 0,
+                    "joues": 0,
+                    "gagnes": 0,
+                    "nuls": 0,
+                    "perdus": 0,
+                    "buts_pour": 0,
+                    "buts_contre": 0,
+                    "difference": 0
+                })
+            
+            return {
+                "success": True,
+                "data": classement,
+                "count": len(classement),
+                "discipline": "salle",
+                "categorie": "Elite Femmes",
+                "note": "Classement initial (0 matchs joués). Données en direct depuis FFHockey."
+            }
         
         return {
             "success": True,
-            "data": classement,
-            "count": len(classement),
+            "data": ranking_data,
+            "count": len(ranking_data),
             "discipline": "salle",
             "categorie": "Elite Femmes",
-            "note": "Données initiales (0 point). Seront mises à jour après les tournois de décembre et janvier."
+            "note": "Classement calculé depuis les matchs réels FFHockey."
         }
         
     except Exception as e:
@@ -1132,385 +1165,49 @@ async def endpoint_classement_elite_femmes_salle():
 @app.get("/api/v1/salle/elite-femmes/matchs", tags=["Salle Elite Femmes"], summary="Matchs Elite Femmes Salle")
 async def endpoint_matchs_elite_femmes_salle():
     """
-    Récupère la liste des matchs de l'élite femmes en salle.
-    Les données sont actuellement manuelles en attente de confirmation FFHockey.
+    Récupère la liste des matchs réels de l'élite femmes en salle depuis FFHockey.
+    Sauvegarde automatiquement les matchs dans Firebase pour synchronisation en direct.
     
-    Tournois:
-    - 13/14 décembre (lieu à confirmer)
-    - 3/4 janvier (Carquefou - Salle de la Mainguais)
+    Données actualisées depuis les URLs officielles FFHockey:
+    - Phases: https://championnats.ffhockey.org/rest2/Championnats/ListerPhases?SaisonAnnee=2026&ManifId=4403
+    - Matchs: https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres?...&ManifId=4403
+    - Classements: https://championnats.ffhockey.org/rest2/Championnats/ClassementEquipes?...&PouleId=11712
+    - Journées: https://championnats.ffhockey.org/rest2/Championnats/ListerJournees?...&PouleId=11712
+    
+    Championnat 2025-2026:
+    - Tournoi 1 : 13/14 décembre (Villeurbanne)
+    - Tournoi 2 : 3/4 janvier (Carquefou - Salle de la Mainguais)
     
     Returns:
-        Liste des matchs Elite Femmes Salle avec données manuelles
+        Liste des matchs Elite Femmes Salle avec données réelles FFHockey
     """
     try:
-        # Données manuelles des tournois Elite Femmes Salle
-        matches_data = [
-            # Tournoi 1 - 13/14 décembre (Villeurbanne)
-            {
-                "equipe_domicile": "HC Grenoble",
-                "equipe_exterieur": "IH Lambersart",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-13 13:00:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("HC Grenoble", "IH Lambersart", "2025-12-13 13:00:00", 1),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "AS Villeurbanne EL",
-                "equipe_exterieur": "PHC Marcq en Baroeul",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-13 14:05:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("AS Villeurbanne EL", "PHC Marcq en Baroeul", "2025-12-13 14:05:00", 2),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Cambrai HC",
-                "equipe_exterieur": "Blanc Mesnil SH",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-13 15:10:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("Cambrai HC", "Blanc Mesnil SH", "2025-12-13 15:10:00", 3),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Carquefou HC",
-                "equipe_exterieur": "La Baule OHC",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-13 16:15:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("Carquefou HC", "La Baule OHC", "2025-12-13 16:15:00", 4),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "IH Lambersart",
-                "equipe_exterieur": "CA Montrouge 92",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-13 17:20:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("IH Lambersart", "CA Montrouge 92", "2025-12-13 17:20:00", 5),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "PHC Marcq en Baroeul",
-                "equipe_exterieur": "HC Grenoble",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-13 18:25:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("PHC Marcq en Baroeul", "HC Grenoble", "2025-12-13 18:25:00", 6),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "AS Villeurbanne EL",
-                "equipe_exterieur": "Villa Primrose",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-13 19:30:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("AS Villeurbanne EL", "Villa Primrose", "2025-12-13 19:30:00", 7),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Cambrai HC",
-                "equipe_exterieur": "La Baule OHC",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-13 20:35:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("Cambrai HC", "La Baule OHC", "2025-12-13 20:35:00", 8),
-                "source": "manual"
-            },
-            # Dimanche 14 décembre (Villeurbanne)
-            {
-                "equipe_domicile": "Blanc Mesnil SH",
-                "equipe_exterieur": "Carquefou HC",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-14 09:00:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("Blanc Mesnil SH", "Carquefou HC", "2025-12-14 09:00:00", 9),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "La Baule OHC",
-                "equipe_exterieur": "Villa Primrose",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-14 10:05:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("La Baule OHC", "Villa Primrose", "2025-12-14 10:05:00", 10),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "PHC Marcq en Baroeul",
-                "equipe_exterieur": "IH Lambersart",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-14 11:10:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("PHC Marcq en Baroeul", "IH Lambersart", "2025-12-14 11:10:00", 11),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "AS Villeurbanne EL",
-                "equipe_exterieur": "CA Montrouge 92",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-14 12:15:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("AS Villeurbanne EL", "CA Montrouge 92", "2025-12-14 12:15:00", 12),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Carquefou HC",
-                "equipe_exterieur": "Cambrai HC",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-14 13:20:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("Carquefou HC", "Cambrai HC", "2025-12-14 13:20:00", 13),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Blanc Mesnil SH",
-                "equipe_exterieur": "Villa Primrose",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-14 14:25:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("Blanc Mesnil SH", "Villa Primrose", "2025-12-14 14:25:00", 14),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "HC Grenoble",
-                "equipe_exterieur": "CA Montrouge 92",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2025-12-14 15:30:00",
-                "statut": "SCHEDULED",
-                "tournoi": "13/14 décembre - Villeurbanne",
-                "lieu": "Villeurbanne",
-                "rencId": generate_renc_id("HC Grenoble", "CA Montrouge 92", "2025-12-14 15:30:00", 15),
-                "source": "manual"
-            },
-            
-            # Tournoi 2 - 3/4 janvier (Carquefou - Salle de la Mainguais)
-            {
-                "equipe_domicile": "La Baule OHC",
-                "equipe_exterieur": "PHC Marcq en Baroeul",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-03 13:00:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("La Baule OHC", "PHC Marcq en Baroeul", "2026-01-03 13:00:00", 16),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Carquefou HC",
-                "equipe_exterieur": "CA Montrouge 92",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-03 14:05:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("Carquefou HC", "CA Montrouge 92", "2026-01-03 14:05:00", 17),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "HC Grenoble",
-                "equipe_exterieur": "Cambrai HC",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-03 15:10:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("HC Grenoble", "Cambrai HC", "2026-01-03 15:10:00", 18),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Blanc Mesnil SH",
-                "equipe_exterieur": "PHC Marcq en Baroeul",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-03 16:15:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("Blanc Mesnil SH", "PHC Marcq en Baroeul", "2026-01-03 16:15:00", 19),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "IH Lambersart",
-                "equipe_exterieur": "AS Villeurbanne EL",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-03 17:20:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("IH Lambersart", "AS Villeurbanne EL", "2026-01-03 17:20:00", 20),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Villa Primrose",
-                "equipe_exterieur": "Cambrai HC",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-03 18:25:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("Villa Primrose", "Cambrai HC", "2026-01-03 18:25:00", 21),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Carquefou HC",
-                "equipe_exterieur": "HC Grenoble",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-03 19:30:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("Carquefou HC", "HC Grenoble", "2026-01-03 19:30:00", 22),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "AS Villeurbanne EL",
-                "equipe_exterieur": "Blanc Mesnil SH",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-03 20:35:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("AS Villeurbanne EL", "Blanc Mesnil SH", "2026-01-03 20:35:00", 23),
-                "source": "manual"
-            },
-            # Dimanche 4 janvier
-            {
-                "equipe_domicile": "Villa Primrose",
-                "equipe_exterieur": "IH Lambersart",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-04 09:00:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("Villa Primrose", "IH Lambersart", "2026-01-04 09:00:00", 24),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Cambrai HC",
-                "equipe_exterieur": "CA Montrouge 92",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-04 10:05:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("Cambrai HC", "CA Montrouge 92", "2026-01-04 10:05:00", 25),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "HC Grenoble",
-                "equipe_exterieur": "AS Villeurbanne EL",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-04 11:10:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("HC Grenoble", "AS Villeurbanne EL", "2026-01-04 11:10:00", 26),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "IH Lambersart",
-                "equipe_exterieur": "La Baule OHC",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-04 12:15:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("IH Lambersart", "La Baule OHC", "2026-01-04 12:15:00", 27),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Carquefou HC",
-                "equipe_exterieur": "PHC Marcq en Baroeul",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-04 13:20:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("Carquefou HC", "PHC Marcq en Baroeul", "2026-01-04 13:20:00", 28),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "Villa Primrose",
-                "equipe_exterieur": "CA Montrouge 92",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-04 14:25:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("Villa Primrose", "CA Montrouge 92", "2026-01-04 14:25:00", 29),
-                "source": "manual"
-            },
-            {
-                "equipe_domicile": "La Baule OHC",
-                "equipe_exterieur": "Blanc Mesnil SH",
-                "score_domicile": "",
-                "score_exterieur": "",
-                "date": "2026-01-04 15:30:00",
-                "statut": "SCHEDULED",
-                "tournoi": "3/4 janvier - Carquefou",
-                "lieu": "Salle de la Mainguais",
-                "rencId": generate_renc_id("La Baule OHC", "Blanc Mesnil SH", "2026-01-04 15:30:00", 30),
-                "source": "manual"
-            },
-        ]
+        matches_data = get_matchs_salle_elite_femmes_cached()
+        
+        # ✅ Sauvegarder automatiquement dans Firebase
+        if FIREBASE_ENABLED:
+            try:
+                from firebase_admin import db as firebase_db
+                for match in matches_data:
+                    match_id = f"salle-elite-femmes_{match.get('rencId', match.get('id', ''))}"
+                    match_data = {
+                        "championship": "salle-elite-femmes",
+                        "equipe_domicile": match.get("equipe_domicile", "?"),
+                        "equipe_exterieur": match.get("equipe_exterieur", "?"),
+                        "score_domicile": int(match.get("score_domicile", 0)),
+                        "score_exterieur": int(match.get("score_exterieur", 0)),
+                        "statut": match.get("statut", "SCHEDULED"),
+                        "date": match.get("date", ""),
+                        "rencId": match.get("rencId", match.get("id", "")),
+                        "last_updated": int(time.time())
+                    }
+                    firebase_db.reference(f'matches/{match_id}').set(match_data)
+                print(f"✅ {len(matches_data)} matchs Elite Femmes Salle sauvegardés dans Firebase")
+            except Exception as firebase_error:
+                print(f"⚠️  Erreur Firebase (non-bloquante): {str(firebase_error)}")
+        
+        # Vérifier et notifier les matchs terminés
+        check_and_notify_finished_matches(matches_data, "salle-elite-femmes", "Elite Femmes Salle")
         
         return {
             "success": True,
@@ -1518,7 +1215,7 @@ async def endpoint_matchs_elite_femmes_salle():
             "count": len(matches_data),
             "discipline": "salle",
             "categorie": "Elite Femmes",
-            "note": "Données manuelles en attente de confirmation FFHockey."
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4403) + Firebase sync"
         }
         
     except Exception as e:

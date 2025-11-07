@@ -392,6 +392,129 @@ def _get_matchs_by_team_name(manif_id: str, team_name_filter: str) -> List[Dict]
 def get_matchs_carquefou_sd() -> List[Dict]:
     """Récupère les matchs de Carquefou HC Seniors Dames (Elite)."""
     return _get_matchs_by_team_name("4318", "CARQUEFOU")
+
+
+# ============================================
+# Elite Femmes Salle (NEW)
+# ManifId: 4403 (Saison 2026)
+# ============================================
+
+def get_classement_salle_elite_femmes() -> List[Dict]:
+    """
+    Récupère le classement calculé des Elite Femmes en Salle.
+    Calcul automatique: Victoire=3pts, Nul=1pt, Défaite=0pts
+    Critères de départage: Différence de buts
+    """
+    try:
+        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+        params = {
+            "SaisonAnnee": "2026",
+            "ManifId": "4403"  # Elite Femmes Salle
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data.get("ResponseCode") != "200":
+            print(f"Erreur API: {data.get('ResponseMessage')}")
+            return []
+        
+        rencontres_array = data.get("Response", {}).get("RencontresArray", {})
+        
+        # Dictionnaire pour stocker les stats de chaque équipe
+        standings = {}
+        
+        for match_data in rencontres_array.values():
+            scores = match_data.get("Scores", {})
+            
+            # Vérifier si le match a un résultat saisi
+            if not scores.get("RencScoresSaisieDate"):
+                continue
+            
+            equipe1_nom = match_data.get("Equipe1", {}).get("EquipeNom", "")
+            equipe2_nom = match_data.get("Equipe2", {}).get("EquipeNom", "")
+            but1 = int(scores.get("RencButsEqp1") or 0)
+            but2 = int(scores.get("RencButsEqp2") or 0)
+            
+            # Initialiser les équipes si nécessaire
+            if equipe1_nom not in standings:
+                standings[equipe1_nom] = {
+                    "joues": 0, "gagnes": 0, "nuls": 0, "perdus": 0,
+                    "buts_pour": 0, "buts_contre": 0, "points": 0
+                }
+            if equipe2_nom not in standings:
+                standings[equipe2_nom] = {
+                    "joues": 0, "gagnes": 0, "nuls": 0, "perdus": 0,
+                    "buts_pour": 0, "buts_contre": 0, "points": 0
+                }
+            
+            # Mise à jour des statistiques
+            standings[equipe1_nom]["joues"] += 1
+            standings[equipe2_nom]["joues"] += 1
+            
+            standings[equipe1_nom]["buts_pour"] += but1
+            standings[equipe1_nom]["buts_contre"] += but2
+            
+            standings[equipe2_nom]["buts_pour"] += but2
+            standings[equipe2_nom]["buts_contre"] += but1
+            
+            if but1 > but2:
+                standings[equipe1_nom]["gagnes"] += 1
+                standings[equipe1_nom]["points"] += 3
+                standings[equipe2_nom]["perdus"] += 1
+            elif but2 > but1:
+                standings[equipe2_nom]["gagnes"] += 1
+                standings[equipe2_nom]["points"] += 3
+                standings[equipe1_nom]["perdus"] += 1
+            else:
+                standings[equipe1_nom]["nuls"] += 1
+                standings[equipe1_nom]["points"] += 1
+                standings[equipe2_nom]["nuls"] += 1
+                standings[equipe2_nom]["points"] += 1
+        
+        # Créer la liste de classement triée
+        classement = []
+        for position, (team_name, stats) in enumerate(
+            sorted(standings.items(), key=lambda x: (-x[1]["points"], -(x[1]["buts_pour"] - x[1]["buts_contre"]), -x[1]["buts_pour"])),
+            1
+        ):
+            classement.append({
+                "position": position,
+                "equipe": team_name,
+                "points": stats["points"],
+                "joues": stats["joues"],
+                "gagnes": stats["gagnes"],
+                "nuls": stats["nuls"],
+                "perdus": stats["perdus"],
+                "buts_pour": stats["buts_pour"],
+                "buts_contre": stats["buts_contre"],
+                "difference": stats["buts_pour"] - stats["buts_contre"]
+            })
+        
+        return classement
+        
+    except requests.exceptions.Timeout:
+        print(f"Erreur: Timeout lors de la récupération du classement Elite Femmes Salle")
+        return []
+    except requests.exceptions.ConnectionError:
+        print("Erreur: Impossible de se connecter à l'API de la FFH")
+        return []
+    except requests.exceptions.HTTPError as e:
+        print(f"Erreur HTTP: {e.response.status_code}")
+        return []
+    except (ValueError, KeyError) as e:
+        print(f"Erreur lors du parsing JSON: {e}")
+        return []
+    except Exception as e:
+        print(f"Erreur inattendue: {e}")
+        return []
+
+
+def get_matchs_salle_elite_femmes() -> List[Dict]:
+    """Récupère les matchs réels de l'Elite Femmes en Salle depuis la FFH."""
+    return _get_matches_by_manif("4403")
 def get_matches() -> List[Dict]:
     """Récupère les matchs de l'élite hommes."""
     return _get_matches_by_manif("4317")
