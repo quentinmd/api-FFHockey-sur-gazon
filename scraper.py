@@ -10,9 +10,8 @@ from typing import List, Dict
 
 def _normalize_team_name(team_name: str) -> str:
     """
-    Normalise le nom d'une équipe en supprimant les numéros de poule et suffixes d'âge.
+    Normalise le nom d'une équipe en supprimant les numéros de poule.
     Ex: "CARQUEFOU HC 3" -> "CARQUEFOU HC"
-    Ex: "Carquefou HC 1 U17" -> "Carquefou HC 1"
     Mais garde les numéros qui font partie du nom: "CA MONTROUGE 92" -> "CA MONTROUGE 92"
     
     Args:
@@ -24,15 +23,9 @@ def _normalize_team_name(team_name: str) -> str:
     if not team_name:
         return team_name
     
-    normalized = team_name.strip()
-    
-    # Supprimer les suffixes d'âge (U17, U15, etc.) à la fin
-    normalized = re.sub(r'\s+U\d+\s*$', '', normalized)
-    
     # Pattern: " X" où X est un nombre SEUL (1-9) à la fin
     # Ceci ciblera les numéros de poule (1-9) mais pas des codes comme "92"
-    normalized = re.sub(r'\s+[1-9]\s*$', '', normalized)
-    
+    normalized = re.sub(r'\s+[1-9]\s*$', '', team_name.strip())
     return normalized
 
 
@@ -325,9 +318,13 @@ def get_matchs_carquefou_1sh() -> List[Dict]:
         exterieur = match.get("equipe_exterieur", "").upper()
         # Chercher "CARQUEFOU HC 1" dans le nom de l'équipe (avec ou sans suffixe)
         if "CARQUEFOU HC 1" in domicile or "CARQUEFOU HC 1" in exterieur:
-            # Normaliser les noms d'équipes
-            match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
-            match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
+            # Normaliser les noms d'équipes Carquefou seulement (supprimer U17, etc.)
+            if "CARQUEFOU" in domicile:
+                match["equipe_domicile"] = re.sub(r'\s+U\d+\s*$', '', match["equipe_domicile"].strip())
+                match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
+            if "CARQUEFOU" in exterieur:
+                match["equipe_exterieur"] = re.sub(r'\s+U\d+\s*$', '', match["equipe_exterieur"].strip())
+                match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
             filtered_matches.append(match)
     return filtered_matches
 
