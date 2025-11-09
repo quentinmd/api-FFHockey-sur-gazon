@@ -10,8 +10,9 @@ from typing import List, Dict
 
 def _normalize_team_name(team_name: str) -> str:
     """
-    Normalise le nom d'une équipe en supprimant les numéros de poule.
+    Normalise le nom d'une équipe en supprimant les numéros de poule et suffixes d'âge.
     Ex: "CARQUEFOU HC 3" -> "CARQUEFOU HC"
+    Ex: "Carquefou HC 1 U17" -> "Carquefou HC 1"
     Mais garde les numéros qui font partie du nom: "CA MONTROUGE 92" -> "CA MONTROUGE 92"
     
     Args:
@@ -23,9 +24,15 @@ def _normalize_team_name(team_name: str) -> str:
     if not team_name:
         return team_name
     
+    normalized = team_name.strip()
+    
+    # Supprimer les suffixes d'âge (U17, U15, etc.) à la fin
+    normalized = re.sub(r'\s+U\d+\s*$', '', normalized)
+    
     # Pattern: " X" où X est un nombre SEUL (1-9) à la fin
     # Ceci ciblera les numéros de poule (1-9) mais pas des codes comme "92"
-    normalized = re.sub(r'\s+[1-9]\s*$', '', team_name.strip())
+    normalized = re.sub(r'\s+[1-9]\s*$', '', normalized)
+    
     return normalized
 
 
@@ -310,7 +317,19 @@ def get_classement_carquefou_1sh() -> List[Dict]:
 
 def get_matchs_carquefou_1sh() -> List[Dict]:
     """Récupère les matchs de Carquefou HC 1 Seniors Hommes."""
-    return get_matchs_poule("11510")
+    matches = get_matchs_poule("11510")
+    # Filtrer pour ne conserver que les matchs impliquant Carquefou HC 1
+    filtered_matches = []
+    for match in matches:
+        domicile = match.get("equipe_domicile", "").upper()
+        exterieur = match.get("equipe_exterieur", "").upper()
+        # Chercher "CARQUEFOU HC 1" dans le nom de l'équipe (avec ou sans suffixe)
+        if "CARQUEFOU HC 1" in domicile or "CARQUEFOU HC 1" in exterieur:
+            # Normaliser les noms d'équipes
+            match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
+            match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
+            filtered_matches.append(match)
+    return filtered_matches
 
 
 # Raccourcis pour Carquefou HC 2 Seniors Hommes (PouleId: 11511)
