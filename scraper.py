@@ -4,7 +4,29 @@ Récupère les données depuis l'API interne de la FFH
 """
 
 import requests
+import re
 from typing import List, Dict
+
+
+def _normalize_team_name(team_name: str) -> str:
+    """
+    Normalise le nom d'une équipe en supprimant les numéros de poule.
+    Ex: "CARQUEFOU HC 3" -> "CARQUEFOU HC"
+    Mais garde les numéros qui font partie du nom: "CA MONTROUGE 92" -> "CA MONTROUGE 92"
+    
+    Args:
+        team_name: Le nom de l'équipe à normaliser
+    
+    Returns:
+        str: Le nom normalisé
+    """
+    if not team_name:
+        return team_name
+    
+    # Pattern: " X" où X est un nombre SEUL (1-9) à la fin
+    # Ceci ciblera les numéros de poule (1-9) mais pas des codes comme "92"
+    normalized = re.sub(r'\s+[1-9]\s*$', '', team_name.strip())
+    return normalized
 
 
 def _calculate_ranking(manif_id: str) -> List[Dict]:
@@ -391,7 +413,12 @@ def _get_matchs_by_team_name(manif_id: str, team_name_filter: str) -> List[Dict]
 # Raccourcis pour Carquefou HC Seniors Dames Elite
 def get_matchs_carquefou_sd() -> List[Dict]:
     """Récupère les matchs de Carquefou HC Seniors Dames (Elite)."""
-    return _get_matchs_by_team_name("4318", "CARQUEFOU")
+    matches = _get_matchs_by_team_name("4318", "CARQUEFOU")
+    # Normaliser le nom de l'équipe Carquefou (enlever le numéro de poule)
+    for match in matches:
+        match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
+        match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
+    return matches
 
 
 # ============================================
