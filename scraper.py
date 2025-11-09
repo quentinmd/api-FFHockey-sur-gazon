@@ -337,7 +337,23 @@ def get_classement_carquefou_2sh() -> List[Dict]:
 
 def get_matchs_carquefou_2sh() -> List[Dict]:
     """Récupère les matchs de Carquefou HC 2 Seniors Hommes."""
-    return get_matchs_poule("11511")
+    matches = get_matchs_poule("11511")
+    # Filtrer pour ne conserver que les matchs impliquant Carquefou HC 2
+    filtered_matches = []
+    for match in matches:
+        domicile = match.get("equipe_domicile", "").upper()
+        exterieur = match.get("equipe_exterieur", "").upper()
+        # Chercher "CARQUEFOU HC 2" dans le nom de l'équipe (avec ou sans suffixe)
+        if "CARQUEFOU HC 2" in domicile or "CARQUEFOU HC 2" in exterieur:
+            # Normaliser les noms d'équipes Carquefou seulement (supprimer U17, etc.)
+            if "CARQUEFOU" in domicile:
+                match["equipe_domicile"] = re.sub(r'\s+U\d+\s*$', '', match["equipe_domicile"].strip())
+                match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
+            if "CARQUEFOU" in exterieur:
+                match["equipe_exterieur"] = re.sub(r'\s+U\d+\s*$', '', match["equipe_exterieur"].strip())
+                match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
+            filtered_matches.append(match)
+    return filtered_matches
 
 
 def _get_matchs_by_team_name(manif_id: str, team_name_filter: str) -> List[Dict]:
