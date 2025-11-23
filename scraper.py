@@ -642,6 +642,12 @@ def _get_matches_by_manif(manif_id: str) -> List[Dict]:
             equipe1_name = equipe1_data.get("EquipeNom", "")
             equipe2_name = equipe2_data.get("EquipeNom", "")
             
+            # Correction spécifique : CARQUEFOU HC U14F -> Carquefou HC
+            if "CARQUEFOU HC U14F" in equipe1_name:
+                equipe1_name = equipe1_name.replace("CARQUEFOU HC U14F", "Carquefou HC")
+            if "CARQUEFOU HC U14F" in equipe2_name:
+                equipe2_name = equipe2_name.replace("CARQUEFOU HC U14F", "Carquefou HC")
+            
             scores = match_data.get("Scores", {})
             but1 = int(scores.get("RencButsEqp1") or 0) if scores.get("RencButsEqp1") else None
             but2 = int(scores.get("RencButsEqp2") or 0) if scores.get("RencButsEqp2") else None
