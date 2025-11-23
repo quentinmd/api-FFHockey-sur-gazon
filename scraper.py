@@ -450,6 +450,13 @@ def get_matchs_carquefou_sd() -> List[Dict]:
     for match in matches:
         match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
         match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
+        
+        # Correction spécifique : CARQUEFOU HC U14F -> Carquefou HC
+        if "CARQUEFOU HC U14F" in match["equipe_domicile"]:
+            match["equipe_domicile"] = match["equipe_domicile"].replace("CARQUEFOU HC U14F", "Carquefou HC")
+        if "CARQUEFOU HC U14F" in match["equipe_exterieur"]:
+            match["equipe_exterieur"] = match["equipe_exterieur"].replace("CARQUEFOU HC U14F", "Carquefou HC")
+            
     return matches
 
 
