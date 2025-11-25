@@ -1022,12 +1022,6 @@ async def endpoint_classement_elite_hommes_gazon():
     try:
         ranking_data = get_ranking_elite_hommes_gazon_cached()
         
-        if not ranking_data:
-            raise HTTPException(
-                status_code=503,
-                detail="La source de données de la FFH est actuellement indisponible."
-            )
-        
         return {
             "success": True,
             "data": ranking_data,
@@ -1051,12 +1045,6 @@ async def endpoint_matchs_elite_hommes_gazon():
     """
     try:
         matches_data = get_matches_elite_hommes_gazon_cached()
-        
-        if not matches_data:
-            raise HTTPException(
-                status_code=503,
-                detail="La source de données de la FFH est actuellement indisponible."
-            )
         
         # Vérifier et notifier les matchs terminés
         check_and_notify_finished_matches(matches_data, "elite-hommes-gazon", "Elite Hommes Gazon")
@@ -1089,12 +1077,6 @@ async def endpoint_classement_elite_femmes_gazon():
     try:
         ranking_data = get_ranking_elite_femmes_gazon_cached()
         
-        if not ranking_data:
-            raise HTTPException(
-                status_code=503,
-                detail="La source de données de la FFH est actuellement indisponible."
-            )
-        
         return {
             "success": True,
             "data": ranking_data,
@@ -1118,12 +1100,6 @@ async def endpoint_matchs_elite_femmes_gazon():
     """
     try:
         matches_data = get_matches_elite_femmes_gazon_cached()
-        
-        if not matches_data:
-            raise HTTPException(
-                status_code=503,
-                detail="La source de données de la FFH est actuellement indisponible."
-            )
         
         # Vérifier et notifier les matchs terminés
         check_and_notify_finished_matches(matches_data, "elite-femmes-gazon", "Elite Femmes Gazon")
