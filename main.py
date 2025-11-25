@@ -1014,7 +1014,7 @@ async def serve_score_only():
 async def endpoint_classement_elite_hommes_gazon():
     """
     Récupère le classement de l'élite hommes sur gazon.
-    Données depuis FFHockey (ManifId: 4402).
+    Données depuis FFHockey (ManifId: 4399).
     
     Returns:
         Classement des équipes Elite Hommes Gazon
@@ -1034,7 +1034,7 @@ async def endpoint_classement_elite_hommes_gazon():
             "count": len(ranking_data),
             "championship": "elite-hommes-gazon",
             "discipline": "gazon",
-            "note": "✅ Données réelles depuis FFHockey (ManifId: 4402)"
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4399)"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1044,7 +1044,7 @@ async def endpoint_classement_elite_hommes_gazon():
 async def endpoint_matchs_elite_hommes_gazon():
     """
     Récupère les matchs de l'élite hommes sur gazon.
-    Données depuis FFHockey (ManifId: 4402).
+    Données depuis FFHockey (ManifId: 4399).
     
     Returns:
         Liste des matchs Elite Hommes Gazon
@@ -1067,7 +1067,7 @@ async def endpoint_matchs_elite_hommes_gazon():
             "count": len(matches_data),
             "championship": "elite-hommes-gazon",
             "discipline": "gazon",
-            "note": "✅ Données réelles depuis FFHockey (ManifId: 4402)"
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4399)"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
