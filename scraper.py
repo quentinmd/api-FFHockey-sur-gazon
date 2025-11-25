@@ -582,6 +582,36 @@ def get_matchs_salle_elite_femmes() -> List[Dict]:
 
 
 # ============================================
+# Elite Hommes Gazon (NEW)
+# ManifId: 4402 (Saison 2026)
+# ============================================
+
+def get_ranking_elite_hommes_gazon() -> List[Dict]:
+    """Récupère le classement de Elite Hommes Gazon."""
+    return _calculate_ranking("4402")
+
+
+def get_matches_elite_hommes_gazon() -> List[Dict]:
+    """Récupère les matchs de Elite Hommes Gazon."""
+    return _get_matches_by_manif("4402")
+
+
+# ============================================
+# Elite Femmes Gazon (NEW)
+# ManifId: 4404 (Saison 2026)
+# ============================================
+
+def get_ranking_elite_femmes_gazon() -> List[Dict]:
+    """Récupère le classement de Elite Femmes Gazon."""
+    return _calculate_ranking("4404")
+
+
+def get_matches_elite_femmes_gazon() -> List[Dict]:
+    """Récupère les matchs de Elite Femmes Gazon."""
+    return _get_matches_by_manif("4404")
+
+
+# ============================================
 # Nationale 2 Hommes Salle - Zone 3 (NEW)
 # ManifId: 4430 (Saison 2026)
 # ============================================

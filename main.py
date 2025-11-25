@@ -28,6 +28,8 @@ from scraper import (
     get_classement_carquefou_2sh, get_matchs_carquefou_2sh,
     get_matchs_carquefou_sd,
     get_classement_salle_elite_femmes, get_matchs_salle_elite_femmes,
+    get_ranking_elite_hommes_gazon, get_matches_elite_hommes_gazon,
+    get_ranking_elite_femmes_gazon, get_matches_elite_femmes_gazon,
     get_ranking_n2_salle_zone3, get_matches_n2_salle_zone3
 )
 
@@ -741,6 +743,42 @@ def get_matchs_carquefou_sd_cached():
     return cache_dynamic[cache_key]
 
 
+def get_ranking_elite_hommes_gazon_cached():
+    """Wrapper avec cache pour get_ranking_elite_hommes_gazon()"""
+    cache_key = "ranking_elite_hommes_gazon"
+    if cache_key not in cache_dynamic:
+        result = get_ranking_elite_hommes_gazon()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+
+def get_matches_elite_hommes_gazon_cached():
+    """Wrapper avec cache pour get_matches_elite_hommes_gazon()"""
+    cache_key = "matches_elite_hommes_gazon"
+    if cache_key not in cache_dynamic:
+        result = get_matches_elite_hommes_gazon()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+
+def get_ranking_elite_femmes_gazon_cached():
+    """Wrapper avec cache pour get_ranking_elite_femmes_gazon()"""
+    cache_key = "ranking_elite_femmes_gazon"
+    if cache_key not in cache_dynamic:
+        result = get_ranking_elite_femmes_gazon()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+
+def get_matches_elite_femmes_gazon_cached():
+    """Wrapper avec cache pour get_matches_elite_femmes_gazon()"""
+    cache_key = "matches_elite_femmes_gazon"
+    if cache_key not in cache_dynamic:
+        result = get_matches_elite_femmes_gazon()
+        cache_dynamic[cache_key] = result
+    return cache_dynamic[cache_key]
+
+
 def get_classement_salle_elite_femmes_cached():
     """Wrapper avec cache pour get_classement_salle_elite_femmes()"""
     cache_key = "classement_salle_elite_femmes"
@@ -966,6 +1004,140 @@ async def serve_score_only():
         )
 
 
+
+
+# ========================
+# ELITE HOMMES - GAZON
+# ========================
+
+@app.get("/api/v1/gazon/elite-hommes/classement", tags=["Elite Hommes Gazon"], summary="Classement Elite Hommes - Gazon")
+async def endpoint_classement_elite_hommes_gazon():
+    """
+    Récupère le classement de l'élite hommes sur gazon.
+    Données depuis FFHockey (ManifId: 4402).
+    
+    Returns:
+        Classement des équipes Elite Hommes Gazon
+    """
+    try:
+        ranking_data = get_ranking_elite_hommes_gazon_cached()
+        
+        if not ranking_data:
+            raise HTTPException(
+                status_code=503,
+                detail="La source de données de la FFH est actuellement indisponible."
+            )
+        
+        return {
+            "success": True,
+            "data": ranking_data,
+            "count": len(ranking_data),
+            "championship": "elite-hommes-gazon",
+            "discipline": "gazon",
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4402)"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/gazon/elite-hommes/matchs", tags=["Elite Hommes Gazon"], summary="Matchs Elite Hommes - Gazon")
+async def endpoint_matchs_elite_hommes_gazon():
+    """
+    Récupère les matchs de l'élite hommes sur gazon.
+    Données depuis FFHockey (ManifId: 4402).
+    
+    Returns:
+        Liste des matchs Elite Hommes Gazon
+    """
+    try:
+        matches_data = get_matches_elite_hommes_gazon_cached()
+        
+        if not matches_data:
+            raise HTTPException(
+                status_code=503,
+                detail="La source de données de la FFH est actuellement indisponible."
+            )
+        
+        # Vérifier et notifier les matchs terminés
+        check_and_notify_finished_matches(matches_data, "elite-hommes-gazon", "Elite Hommes Gazon")
+        
+        return {
+            "success": True,
+            "data": matches_data,
+            "count": len(matches_data),
+            "championship": "elite-hommes-gazon",
+            "discipline": "gazon",
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4402)"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========================
+# ELITE FEMMES - GAZON
+# ========================
+
+@app.get("/api/v1/gazon/elite-femmes/classement", tags=["Elite Femmes Gazon"], summary="Classement Elite Femmes - Gazon")
+async def endpoint_classement_elite_femmes_gazon():
+    """
+    Récupère le classement de l'élite femmes sur gazon.
+    Données depuis FFHockey (ManifId: 4404).
+    
+    Returns:
+        Classement des équipes Elite Femmes Gazon
+    """
+    try:
+        ranking_data = get_ranking_elite_femmes_gazon_cached()
+        
+        if not ranking_data:
+            raise HTTPException(
+                status_code=503,
+                detail="La source de données de la FFH est actuellement indisponible."
+            )
+        
+        return {
+            "success": True,
+            "data": ranking_data,
+            "count": len(ranking_data),
+            "championship": "elite-femmes-gazon",
+            "discipline": "gazon",
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4404)"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/gazon/elite-femmes/matchs", tags=["Elite Femmes Gazon"], summary="Matchs Elite Femmes - Gazon")
+async def endpoint_matchs_elite_femmes_gazon():
+    """
+    Récupère les matchs de l'élite femmes sur gazon.
+    Données depuis FFHockey (ManifId: 4404).
+    
+    Returns:
+        Liste des matchs Elite Femmes Gazon
+    """
+    try:
+        matches_data = get_matches_elite_femmes_gazon_cached()
+        
+        if not matches_data:
+            raise HTTPException(
+                status_code=503,
+                detail="La source de données de la FFH est actuellement indisponible."
+            )
+        
+        # Vérifier et notifier les matchs terminés
+        check_and_notify_finished_matches(matches_data, "elite-femmes-gazon", "Elite Femmes Gazon")
+        
+        return {
+            "success": True,
+            "data": matches_data,
+            "count": len(matches_data),
+            "championship": "elite-femmes-gazon",
+            "discipline": "gazon",
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4404)"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/salle/elite-femmes/classement", tags=["Salle Elite Femmes"], summary="Classement Elite Femmes Salle")
