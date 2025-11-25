@@ -248,10 +248,10 @@ def check_all_matches_for_notifications():
             ("carquefou-1sh", f"{api_url}/api/v1/carquefou/1sh/matchs", "Carquefou 1SH"),
             ("carquefou-2sh", f"{api_url}/api/v1/carquefou/2sh/matchs", "Carquefou 2SH"),
             ("carquefou-sd", f"{api_url}/api/v1/carquefou/sd/matchs", "Carquefou SD"),
-            ("u14-garcons", f"{api_url}/api/v1/interligues-u14-garcons/matchs", "U14 Garçons"),
-            ("u14-garcons-a", f"{api_url}/api/v1/interligues-u14-garcons-poule-a/matchs", "U14 Garçons Poule A"),
-            ("u14-garcons-b", f"{api_url}/api/v1/interligues-u14-garcons-poule-b/matchs", "U14 Garçons Poule B"),
-            ("u14-filles", f"{api_url}/api/v1/interligues-u14-filles/matchs", "U14 Filles"),
+            # ("u14-garcons", f"{api_url}/api/v1/interligues-u14-garcons/matchs", "U14 Garçons"),
+            # ("u14-garcons-a", f"{api_url}/api/v1/interligues-u14-garcons-poule-a/matchs", "U14 Garçons Poule A"),
+            # ("u14-garcons-b", f"{api_url}/api/v1/interligues-u14-garcons-poule-b/matchs", "U14 Garçons Poule B"),
+            # ("u14-filles", f"{api_url}/api/v1/interligues-u14-filles/matchs", "U14 Filles"),
         ]
         
         for prefix, endpoint_url, comp_name in endpoints_to_check:
@@ -1467,790 +1467,790 @@ async def health_check():
     }
 
 
-# ============================================
-# INTERLIGUES U14 (NOUVELLES COMPÉTITIONS)
-# ============================================
-
-import requests
-
-@app.get("/api/v1/interligues-u14-filles/classement", tags=["Interligues U14"], summary="Classement U14 Filles")
-def get_classement_interligues_u14_filles():
-    """
-    Récupère le classement calculé des Interligues U14 Filles.
-    Calcul automatique: Victoire=3pts, Nul=1pt, Défaite=0pts
-    Critères de départage: Différence de buts
-    
-    Returns:
-        Classement des équipes U14 Filles
-    """
-    return calculate_classement_u14_filles()
-
-
-@app.get("/api/v1/interligues-u14-filles/matchs", tags=["Interligues U14"], summary="Matchs U14 Filles")
-def get_matchs_interligues_u14_filles():
-    """
-    Récupère les matchs des Interligues U14 Filles (Championnat de France des Régions).
-    
-    Returns:
-        Liste des matchs U14 Filles avec format standardisé
-    """
-    try:
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4401",  # U14 Filles
-            "PhaseId": "",
-            "PouleId": "",
-            "TournId": "",
-            "JourId": "",
-            "StructureCodeParticipante": "",
-            "EqpId": "",
-            "EqpIdDomicile": "",
-            "StructureCodeDomicile": "",
-            "EqpIdVisiteurs": "",
-            "StructureCodeVisiteurs": "",
-            "StructureCodeTerrain": "",
-            "StructureCodeLieuPratique": ""
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            matches_raw = data["Response"].get("RencontresArray", {})
-            # Transformer les données au format attendu par le Dashboard avec RencId
-            matches_formatted = []
-            for match in matches_raw.values():
-                formatted_match = format_match_data(match, include_renc_id=True)
-                matches_formatted.append(formatted_match)
-            return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
-        else:
-            return {"success": False, "data": [], "count": 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Filles: {str(e)}")
-
-
-def calculate_classement_u14_filles():
-    """
-    Calcule le classement des U14 Filles à partir des matchs.
-    Règles: Victoire = 3pts, Nul = 1pt, Défaite = 0pts
-    Critères de départage: Différence de buts
-    """
-    try:
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4401"  # U14 Filles
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            matches_raw = data["Response"].get("RencontresArray", {})
-            
-            # Dictionnaire pour stocker les stats de chaque équipe
-            standings = {}
-            
-            for match in matches_raw.values():
-                # Récupérer les infos du match
-                equipe1_nom = match.get("Equipe1", {}).get("EquipeNom", "TBD")
-                equipe2_nom = match.get("Equipe2", {}).get("EquipeNom", "TBD")
-                but1 = match.get("Scores", {}).get("RencButsEqp1")
-                but2 = match.get("Scores", {}).get("RencButsEqp2")
-                
-                # Ignorer les matchs non joués (pas de score)
-                if not but1 or not but2:
-                    continue
-                
-                but1 = int(but1)
-                but2 = int(but2)
-                
-                # Initialiser les équipes si pas encore dans le classement
-                if equipe1_nom not in standings:
-                    standings[equipe1_nom] = {
-                        "equipe": equipe1_nom,
-                        "joues": 0,
-                        "gagnees": 0,
-                        "nulles": 0,
-                        "perdues": 0,
-                        "buts_pour": 0,
-                        "buts_contre": 0,
-                        "points": 0
-                    }
-                
-                if equipe2_nom not in standings:
-                    standings[equipe2_nom] = {
-                        "equipe": equipe2_nom,
-                        "joues": 0,
-                        "gagnees": 0,
-                        "nulles": 0,
-                        "perdues": 0,
-                        "buts_pour": 0,
-                        "buts_contre": 0,
-                        "points": 0
-                    }
-                
-                # Mettre à jour les stats
-                standings[equipe1_nom]["joues"] += 1
-                standings[equipe1_nom]["buts_pour"] += but1
-                standings[equipe1_nom]["buts_contre"] += but2
-                
-                standings[equipe2_nom]["joues"] += 1
-                standings[equipe2_nom]["buts_pour"] += but2
-                standings[equipe2_nom]["buts_contre"] += but1
-                
-                # Calculer les points
-                if but1 > but2:  # Équipe 1 gagne
-                    standings[equipe1_nom]["gagnees"] += 1
-                    standings[equipe1_nom]["points"] += 3
-                    standings[equipe2_nom]["perdues"] += 1
-                elif but2 > but1:  # Équipe 2 gagne
-                    standings[equipe2_nom]["gagnees"] += 1
-                    standings[equipe2_nom]["points"] += 3
-                    standings[equipe1_nom]["perdues"] += 1
-                else:  # Match nul
-                    standings[equipe1_nom]["nulles"] += 1
-                    standings[equipe1_nom]["points"] += 1
-                    standings[equipe2_nom]["nulles"] += 1
-                    standings[equipe2_nom]["points"] += 1
-            
-            # Calculer la différence de buts et trier
-            classement = []
-            for equipe in standings.values():
-                equipe["difference_buts"] = equipe["buts_pour"] - equipe["buts_contre"]
-                classement.append(equipe)
-            
-            # Trier par: Points DESC, Différence de buts DESC, Buts marqués DESC
-            classement.sort(key=lambda x: (-x["points"], -x["difference_buts"], -x["buts_pour"]))
-            
-            return {"success": True, "data": classement, "count": len(classement)}
-        else:
-            return {"success": False, "data": [], "count": 0}
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors du calcul du classement U14 Filles: {str(e)}")
-
-
-# ============================================
-# ENDPOINTS GÉNÉRIQUES - GAZON & SALLE
-# ============================================
-# Ces endpoints supportent à la fois Gazon et Salle
-# Gazon: /api/v1/gazon/u14-garcons/phases
-# Salle: /api/v1/salle/u14-garcons/phases (quand les données arriveront)
-
-# Mapping discipline -> ManifIds
-MANIFESTATION_IDS = {
-    "gazon": {
-        "u14-garcons": "4400",
-        "u14-filles": "4401",
-    },
-    "salle": {
-        "u14-garcons": "",  # À remplir quand les données arriveront
-        "u14-filles": "",   # À remplir quand les données arriveront
-    }
-}
-
-@app.get("/api/v1/{discipline}/u14-garcons/phases", tags=["Interligues U14 - Générique"], include_in_schema=False)
-async def get_u14_garcons_phases_generic(discipline: str):
-    """
-    Récupère les phases des Interligues U14 Garçons pour une discipline donnée.
-    
-    Args:
-        discipline: "gazon" ou "salle"
-        
-    Returns:
-        Liste des phases
-        
-    Example:
-        /api/v1/gazon/u14-garcons/phases
-    """
-    discipline = discipline.lower()
-    if discipline not in MANIFESTATION_IDS or "u14-garcons" not in MANIFESTATION_IDS[discipline]:
-        raise HTTPException(status_code=400, detail=f"Discipline '{discipline}' non supportée. Utilisez 'gazon' ou 'salle'.")
-    
-    manif_id = MANIFESTATION_IDS[discipline]["u14-garcons"]
-    if not manif_id:
-        raise HTTPException(status_code=503, detail=f"Les données pour {discipline} U14 Garçons ne sont pas encore disponibles.")
-    
-    phases = get_phases_for_manifestation(manif_id)
-    if phases is None:
-        raise HTTPException(status_code=503, detail="Impossible de récupérer les phases.")
-    
-    return {
-        "success": True,
-        "data": phases,
-        "count": len(phases),
-        "discipline": discipline,
-        "categorie": "U14 Garçons"
-    }
-
-@app.get("/api/v1/{discipline}/u14-garcons/poules/{phase_id}", tags=["Interligues U14 - Générique"], include_in_schema=False)
-async def get_u14_garcons_poules_generic(discipline: str, phase_id: str):
-    """
-    Récupère les poules et rencontres pour une phase des Interligues U14 Garçons.
-    
-    Args:
-        discipline: "gazon" ou "salle"
-        phase_id: L'ID de la phase
-        
-    Returns:
-        Liste des poules avec leurs rencontres
-        
-    Example:
-        /api/v1/gazon/u14-garcons/poules/7174
-    """
-    discipline = discipline.lower()
-    if discipline not in MANIFESTATION_IDS or "u14-garcons" not in MANIFESTATION_IDS[discipline]:
-        raise HTTPException(status_code=400, detail=f"Discipline '{discipline}' non supportée. Utilisez 'gazon' ou 'salle'.")
-    
-    manif_id = MANIFESTATION_IDS[discipline]["u14-garcons"]
-    if not manif_id:
-        raise HTTPException(status_code=503, detail=f"Les données pour {discipline} U14 Garçons ne sont pas encore disponibles.")
-    
-    # Données manuelles pour gazon uniquement (en attente de confirmation pour salle)
-    poules_mapping_gazon = {
-        "11694": ("Demi-Finale 1A vs 2B", [
-            create_placeholder_match("Île-de-France vs La Réunion", "2025-10-29", "09:00"),
-        ]),
-        "11695": ("Demi-Finale 1B vs 2A", [
-            create_placeholder_match("Hauts-de-France vs Normandie", "2025-10-29", "10:10"),
-        ]),
-        "11696": ("Demi-Finale 3A vs 4B", [
-            create_placeholder_match("Nouvelle Aquitaine vs Auvergne-Rhône-Alpes", "2025-10-29", "11:20"),
-        ]),
-        "11697": ("Demi-Finale 4A vs 3B", [
-            create_placeholder_match("Pays de la Loire vs Occitanie", "2025-10-29", "12:30"),
-        ]),
-    }
-    
-    poules_mapping = poules_mapping_gazon if discipline == "gazon" else {}
-    poules = get_poules_for_phase(manif_id, phase_id, poules_mapping)
-    
-    return {
-        "success": True,
-        "data": poules,
-        "count": len(poules),
-        "discipline": discipline,
-        "categorie": "U14 Garçons",
-        "phase_id": phase_id,
-        "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
-    }
-
-@app.get("/api/v1/{discipline}/u14-filles/phases", tags=["Interligues U14 - Générique"], include_in_schema=False)
-async def get_u14_filles_phases_generic(discipline: str):
-    """
-    Récupère les phases des Interligues U14 Filles pour une discipline donnée.
-    
-    Args:
-        discipline: "gazon" ou "salle"
-        
-    Returns:
-        Liste des phases
-        
-    Example:
-        /api/v1/gazon/u14-filles/phases
-    """
-    discipline = discipline.lower()
-    if discipline not in MANIFESTATION_IDS or "u14-filles" not in MANIFESTATION_IDS[discipline]:
-        raise HTTPException(status_code=400, detail=f"Discipline '{discipline}' non supportée. Utilisez 'gazon' ou 'salle'.")
-    
-    manif_id = MANIFESTATION_IDS[discipline]["u14-filles"]
-    if not manif_id:
-        raise HTTPException(status_code=503, detail=f"Les données pour {discipline} U14 Filles ne sont pas encore disponibles.")
-    
-    phases = get_phases_for_manifestation(manif_id)
-    if phases is None:
-        raise HTTPException(status_code=503, detail="Impossible de récupérer les phases.")
-    
-    return {
-        "success": True,
-        "data": phases,
-        "count": len(phases),
-        "discipline": discipline,
-        "categorie": "U14 Filles"
-    }
-
-@app.get("/api/v1/{discipline}/u14-filles/poules/{phase_id}", tags=["Interligues U14 - Générique"], include_in_schema=False)
-async def get_u14_filles_poules_generic(discipline: str, phase_id: str):
-    """
-    Récupère les poules et rencontres pour une phase des Interligues U14 Filles.
-    
-    Args:
-        discipline: "gazon" ou "salle"
-        phase_id: L'ID de la phase
-        
-    Returns:
-        Liste des poules avec leurs rencontres
-        
-    Example:
-        /api/v1/gazon/u14-filles/poules/7182
-    """
-    discipline = discipline.lower()
-    if discipline not in MANIFESTATION_IDS or "u14-filles" not in MANIFESTATION_IDS[discipline]:
-        raise HTTPException(status_code=400, detail=f"Discipline '{discipline}' non supportée. Utilisez 'gazon' ou 'salle'.")
-    
-    manif_id = MANIFESTATION_IDS[discipline]["u14-filles"]
-    if not manif_id:
-        raise HTTPException(status_code=503, detail=f"Les données pour {discipline} U14 Filles ne sont pas encore disponibles.")
-    
-    # Données manuelles pour gazon uniquement
-    poules_mapping_gazon = {
-        "11702": ("Places 1 et 2", [
-            create_placeholder_match("Finale du Championnat", "2025-10-30", "12:30", "La Boulie"),
-        ]),
-        "11703": ("Places 3 et 4", [
-            create_placeholder_match("Match pour la médaille de bronze", "2025-10-30", "10:10", "La Boulie"),
-        ]),
-        "11704": ("Places 5 et 6", [
-            create_placeholder_match("Classement 5e/6e place", "2025-10-30", "10:40", "Asnières"),
-        ]),
-    }
-    
-    poules_mapping = poules_mapping_gazon if discipline == "gazon" else {}
-    poules = get_poules_for_phase(manif_id, phase_id, poules_mapping)
-    
-    return {
-        "success": True,
-        "data": poules,
-        "count": len(poules),
-        "discipline": discipline,
-        "categorie": "U14 Filles",
-        "phase_id": phase_id,
-        "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
-    }
-
-
-@app.get("/api/v1/interligues-u14-garcons/matchs", tags=["Interligues U14"], summary="Matchs U14 Garçons")
-def get_matchs_interligues_u14_garcons():
-    """
-    Récupère les matchs des Interligues U14 Garçons (Championnat de France des Régions).
-    
-    Returns:
-        Liste des matchs U14 Garçons avec format standardisé
-    """
-    try:
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4400",  # U14 Garçons
-            "PhaseId": "",
-            "PouleId": "",
-            "TournId": "",
-            "JourId": "",
-            "StructureCodeParticipante": "",
-            "EqpId": "",
-            "EqpIdDomicile": "",
-            "StructureCodeDomicile": "",
-            "EqpIdVisiteurs": "",
-            "StructureCodeVisiteurs": "",
-            "StructureCodeTerrain": "",
-            "StructureCodeLieuPratique": ""
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            matches_raw = data["Response"].get("RencontresArray", {})
-            # Transformer les données au format attendu par le Dashboard avec RencId
-            matches_formatted = []
-            for match in matches_raw.values():
-                formatted_match = format_match_data(match, include_renc_id=True)
-                # Ajouter le champ poule s'il existe
-                formatted_match["poule"] = match.get("Poule", {}).get("PouleLib", "")
-                matches_formatted.append(formatted_match)
-            return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
-        else:
-            return {"success": False, "data": [], "count": 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons: {str(e)}")
-
-
-@app.get("/api/v1/interligues-u14-garcons-poule-a/matchs", tags=["Interligues U14"])
-async def get_matchs_interligues_u14_garcons_poule_a():
-    """
-    Récupère les matchs des Interligues U14 Garçons - POULE A uniquement.
-    """
-    try:
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4400"
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            matches_raw = data["Response"].get("RencontresArray", {})
-            # Filtrer et transformer les données pour Poule A seulement avec RencId
-            matches_formatted = []
-            for match in matches_raw.values():
-                # Filtrer par Poule A
-                if match.get("Poule", {}).get("PouleLib") == "Poule A":
-                    formatted_match = format_match_data(match, include_renc_id=True)
-                    formatted_match["poule"] = match.get("Poule", {}).get("PouleLib", "")
-                    matches_formatted.append(formatted_match)
-            
-            # Vérifier les matchs terminés et envoyer des notifications
-            check_and_notify_finished_matches(matches_formatted, "u14-garcons-a", "U14 Garçons - Poule A")
-            
-            return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
-        else:
-            return {"success": False, "data": [], "count": 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons Poule A: {str(e)}")
-
-
-@app.get("/api/v1/interligues-u14-garcons-poule-b/matchs", tags=["Interligues U14"])
-async def get_matchs_interligues_u14_garcons_poule_b():
-    """
-    Récupère les matchs des Interligues U14 Garçons - POULE B uniquement.
-    """
-    try:
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4400"
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            matches_raw = data["Response"].get("RencontresArray", {})
-            # Filtrer et transformer les données pour Poule B seulement
-            matches_formatted = []
-            for match in matches_raw.values():
-                # Filtrer par Poule B
-                if match.get("Poule", {}).get("PouleLib") == "Poule B":
-                    matches_formatted.append(format_match_data(match))
-            
-            # Vérifier les matchs terminés et envoyer des notifications
-            check_and_notify_finished_matches(matches_formatted, "u14-garcons-b", "U14 Garçons - Poule B")
-            
-            return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
-        else:
-            return {"success": False, "data": [], "count": 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons Poule B: {str(e)}")
-
-
-@app.get("/api/v1/interligues-u14-garcons/phases", tags=["Interligues U14"])
-async def get_interligues_u14_garcons_phases():
-    """
-    Récupère les phases (groupes, 1/2 finales, finales) des Interligues U14 Garçons.
-    Permet de suivre l'évolution de la compétition.
-    """
-    try:
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPhases"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4400"  # U14 Garçons
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            phases_raw = data["Response"].get("PhasesArray", {})
-            phases_formatted = []
-            
-            for phase_id, phase in phases_raw.items():
-                phases_formatted.append({
-                    "phase_id": phase.get("PhaseId"),
-                    "libelle": phase.get("PhaseLib"),
-                    "ordre": int(phase.get("PhaseOrdre", 0)),
-                    "date_debut": phase.get("PhaseDateDebut"),
-                    "date_fin": phase.get("PhaseDateFin"),
-                    "type": phase.get("PhaseRencType")
-                })
-            
-            # Trier par ordre
-            phases_formatted.sort(key=lambda x: x["ordre"])
-            
-            return {
-                "success": True,
-                "data": phases_formatted,
-                "count": len(phases_formatted)
-            }
-        else:
-            return {"success": False, "data": [], "count": 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des phases: {str(e)}")
-
-
-@app.get("/api/v1/interligues-u14-garcons/poules/{phase_id}", tags=["Interligues U14"])
-async def get_interligues_u14_garcons_poules(phase_id: str):
-    """
-    Récupère les poules (matchups) pour une phase spécifique des Interligues U14 Garçons.
-    Les rencontres s'ajoutent automatiquement dès que les équipes sont désignées.
-    Inclut les données manuelles en attente de confirmation FFHockey.
-    
-    Args:
-        phase_id: L'identifiant de la phase (ex: 7174 pour 1/2 finales)
-        
-    Returns:
-        Liste des poules avec leurs rencontres
-        
-    Example:
-        /api/v1/interligues-u14-garcons/poules/7174
-    """
-    try:
-        # D'abord récupérer les poules
-        poules_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPoules"
-        poules_params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4400",  # U14 Garçons
-            "PhaseId": phase_id
-        }
-        
-        poules_response = requests.get(poules_url, params=poules_params, timeout=10)
-        poules_response.raise_for_status()
-        poules_data = poules_response.json()
-        
-        if poules_data.get("ResponseCode") != "200":
-            return {"success": False, "data": [], "count": 0}
-        
-        poules_raw = poules_data.get("Response", {}).get("PoulesArray", {})
-        poules_formatted = []
-        
-        # Données manuelles pour les demi-finales du 29/10 (en attente de confirmation)
-        matches_demi_finales_29oct = [
-            ("11694", "Demi-Finale 1A vs 2B", [
-                create_placeholder_match("Île-de-France vs La Réunion", "2025-10-29", "09:00"),
-            ]),
-            ("11695", "Demi-Finale 1B vs 2A", [
-                create_placeholder_match("Hauts-de-France vs Normandie", "2025-10-29", "10:10"),
-            ]),
-            ("11696", "Demi-Finale 3A vs 4B", [
-                create_placeholder_match("Nouvelle Aquitaine vs Auvergne-Rhône-Alpes", "2025-10-29", "11:20"),
-            ]),
-            ("11697", "Demi-Finale 4A vs 3B", [
-                create_placeholder_match("Pays de la Loire vs Occitanie", "2025-10-29", "12:30"),
-            ]),
-        ]
-        
-        # Données manuelles pour les matchs du 30/10 (finales et classements)
-        matches_finales_30oct = [
-            ("11702", "Match pour la 7e/8e place", [
-                create_placeholder_match("Classement 7e/8e place", "2025-10-30", "09:30", "Asnières"),
-            ]),
-            ("11703", "Match pour la 5e/6e place", [
-                create_placeholder_match("Classement 5e/6e place", "2025-10-30", "09:00", "La Boulie"),
-            ]),
-            ("11704", "Match pour la médaille de Bronze", [
-                create_placeholder_match("Match Bronze", "2025-10-30", "11:20", "La Boulie"),
-            ]),
-            ("11705", "Finale du Championnat", [
-                create_placeholder_match("Finale", "2025-10-30", "13:40", "La Boulie"),
-            ]),
-        ]
-        
-        # Mapper les poules avec les matchs manuels
-        poules_mapping = {poule_id: (libelle, matches) for poule_id, libelle, matches in matches_demi_finales_29oct + matches_finales_30oct}
-        
-        # Pour chaque poule, récupérer les rencontres
-        for poule_id, poule in poules_raw.items():
-            poule_info = {
-                "poule_id": poule.get("PouleId"),
-                "libelle": poule.get("PouleLib"),
-                "rencontres": []
-            }
-            
-            # Récupérer les rencontres pour cette poule
-            try:
-                renc_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-                renc_params = {
-                    "SaisonAnnee": "2026",
-                    "ManifId": "4400",
-                    "PouleId": poule_id
-                }
-                
-                renc_response = requests.get(renc_url, params=renc_params, timeout=10)
-                renc_response.raise_for_status()
-                renc_data = renc_response.json()
-                
-                if renc_data.get("ResponseCode") == "200":
-                    rencontres_raw = renc_data.get("Response", {}).get("RencontresArray", {})
-                    
-                    for match in rencontres_raw.values():
-                        formatted_match = format_match_data(match, include_renc_id=True)
-                        poule_info["rencontres"].append(formatted_match)
-                
-                # Si pas de rencontres de FFHockey, ajouter les données manuelles si disponibles
-                if not poule_info["rencontres"] and poule_id in poules_mapping:
-                    poule_info["rencontres"] = poules_mapping[poule_id][1]
-                    poule_info["source"] = "manual"  # Indiquer que c'est une donnée manuelle
-                    
-            except:
-                # Si pas de rencontres FFHockey, ajouter les données manuelles
-                if poule_id in poules_mapping:
-                    poule_info["rencontres"] = poules_mapping[poule_id][1]
-                    poule_info["source"] = "manual"
-            
-            poules_formatted.append(poule_info)
-        
-        return {
-            "success": True,
-            "data": poules_formatted,
-            "count": len(poules_formatted),
-            "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des poules: {str(e)}")
-
-
-@app.get("/api/v1/interligues-u14-filles/phases", tags=["Interligues U14"])
-async def get_interligues_u14_filles_phases():
-    """
-    Récupère les phases (groupes, finale) des Interligues U14 Filles.
-    Permet de suivre l'évolution de la compétition.
-    """
-    try:
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPhases"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4401"  # U14 Filles
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            phases_raw = data["Response"].get("PhasesArray", {})
-            phases_formatted = []
-            
-            for phase_id, phase in phases_raw.items():
-                phases_formatted.append({
-                    "phase_id": phase.get("PhaseId"),
-                    "libelle": phase.get("PhaseLib"),
-                    "ordre": int(phase.get("PhaseOrdre", 0)),
-                    "date_debut": phase.get("PhaseDateDebut"),
-                    "date_fin": phase.get("PhaseDateFin"),
-                    "type": phase.get("PhaseRencType")
-                })
-            
-            # Trier par ordre
-            phases_formatted.sort(key=lambda x: x["ordre"])
-            
-            return {
-                "success": True,
-                "data": phases_formatted,
-                "count": len(phases_formatted)
-            }
-        else:
-            return {"success": False, "data": [], "count": 0}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des phases U14 Filles: {str(e)}")
-
-
-@app.get("/api/v1/interligues-u14-filles/poules/{phase_id}", tags=["Interligues U14"])
-async def get_interligues_u14_filles_poules(phase_id: str):
-    """
-    Récupère les poules (matchups) pour une phase spécifique des Interligues U14 Filles.
-    Les rencontres s'ajoutent automatiquement dès que les équipes sont désignées.
-    Inclut les données manuelles en attente de confirmation FFHockey.
-    
-    Args:
-        phase_id: L'identifiant de la phase (ex: 7182 pour finale)
-        
-    Returns:
-        Liste des poules avec leurs rencontres
-        
-    Example:
-        /api/v1/interligues-u14-filles/poules/7182
-    """
-    try:
-        # D'abord récupérer les poules
-        poules_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPoules"
-        poules_params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4401",  # U14 Filles
-            "PhaseId": phase_id
-        }
-        
-        poules_response = requests.get(poules_url, params=poules_params, timeout=10)
-        poules_response.raise_for_status()
-        poules_data = poules_response.json()
-        
-        if poules_data.get("ResponseCode") != "200":
-            return {"success": False, "data": [], "count": 0}
-        
-        poules_raw = poules_data.get("Response", {}).get("PoulesArray", {})
-        poules_formatted = []
-        
-        # Données manuelles pour les finales du 30/10 (en attente de confirmation)
-        matches_finales_30oct = [
-            ("11702", "Places 1 et 2", [
-                create_placeholder_match("Finale du Championnat", "2025-10-30", "12:30", "La Boulie"),
-            ]),
-            ("11703", "Places 3 et 4", [
-                create_placeholder_match("Match pour la médaille de bronze", "2025-10-30", "10:10", "La Boulie"),
-            ]),
-            ("11704", "Places 5 et 6", [
-                create_placeholder_match("Classement 5e/6e place", "2025-10-30", "10:40", "Asnières"),
-            ]),
-        ]
-        
-        # Mapper les poules avec les matchs manuels
-        poules_mapping = {poule_id: (libelle, matches) for poule_id, libelle, matches in matches_finales_30oct}
-        
-        # Pour chaque poule, récupérer les rencontres
-        for poule_id, poule in poules_raw.items():
-            poule_info = {
-                "poule_id": poule.get("PouleId"),
-                "libelle": poule.get("PouleLib"),
-                "rencontres": []
-            }
-            
-            # Récupérer les rencontres pour cette poule
-            try:
-                renc_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-                renc_params = {
-                    "SaisonAnnee": "2026",
-                    "ManifId": "4401",
-                    "PouleId": poule_id
-                }
-                
-                renc_response = requests.get(renc_url, params=renc_params, timeout=10)
-                renc_response.raise_for_status()
-                renc_data = renc_response.json()
-                
-                if renc_data.get("ResponseCode") == "200":
-                    rencontres_raw = renc_data.get("Response", {}).get("RencontresArray", {})
-                    
-                    for match in rencontres_raw.values():
-                        formatted_match = format_match_data(match, include_renc_id=True)
-                        poule_info["rencontres"].append(formatted_match)
-                
-                # Si pas de rencontres de FFHockey, ajouter les données manuelles si disponibles
-                if not poule_info["rencontres"] and poule_id in poules_mapping:
-                    poule_info["rencontres"] = poules_mapping[poule_id][1]
-                    poule_info["source"] = "manual"  # Indiquer que c'est une donnée manuelle
-                    
-            except:
-                # Si pas de rencontres FFHockey, ajouter les données manuelles
-                if poule_id in poules_mapping:
-                    poule_info["rencontres"] = poules_mapping[poule_id][1]
-                    poule_info["source"] = "manual"
-            
-            poules_formatted.append(poule_info)
-        
-        return {
-            "success": True,
-            "data": poules_formatted,
-            "count": len(poules_formatted),
-            "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des poules U14 Filles: {str(e)}")
-
-
-# ============================================
+# # ============================================
+# # INTERLIGUES U14 (NOUVELLES COMPÉTITIONS)
+# # ============================================
+# 
+# import requests
+# 
+# @app.get("/api/v1/interligues-u14-filles/classement", tags=["Interligues U14"], summary="Classement U14 Filles")
+# def get_classement_interligues_u14_filles():
+#     """
+#     Récupère le classement calculé des Interligues U14 Filles.
+#     Calcul automatique: Victoire=3pts, Nul=1pt, Défaite=0pts
+#     Critères de départage: Différence de buts
+#     
+#     Returns:
+#         Classement des équipes U14 Filles
+#     """
+#     return calculate_classement_u14_filles()
+# 
+# 
+# @app.get("/api/v1/interligues-u14-filles/matchs", tags=["Interligues U14"], summary="Matchs U14 Filles")
+# def get_matchs_interligues_u14_filles():
+#     """
+#     Récupère les matchs des Interligues U14 Filles (Championnat de France des Régions).
+#     
+#     Returns:
+#         Liste des matchs U14 Filles avec format standardisé
+#     """
+#     try:
+#         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+#         params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4401",  # U14 Filles
+#             "PhaseId": "",
+#             "PouleId": "",
+#             "TournId": "",
+#             "JourId": "",
+#             "StructureCodeParticipante": "",
+#             "EqpId": "",
+#             "EqpIdDomicile": "",
+#             "StructureCodeDomicile": "",
+#             "EqpIdVisiteurs": "",
+#             "StructureCodeVisiteurs": "",
+#             "StructureCodeTerrain": "",
+#             "StructureCodeLieuPratique": ""
+#         }
+#         
+#         response = requests.get(url, params=params)
+#         data = response.json()
+#         
+#         if data.get("ResponseCode") == "200" and "Response" in data:
+#             matches_raw = data["Response"].get("RencontresArray", {})
+#             # Transformer les données au format attendu par le Dashboard avec RencId
+#             matches_formatted = []
+#             for match in matches_raw.values():
+#                 formatted_match = format_match_data(match, include_renc_id=True)
+#                 matches_formatted.append(formatted_match)
+#             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
+#         else:
+#             return {"success": False, "data": [], "count": 0}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Filles: {str(e)}")
+# 
+# 
+# def calculate_classement_u14_filles():
+#     """
+#     Calcule le classement des U14 Filles à partir des matchs.
+#     Règles: Victoire = 3pts, Nul = 1pt, Défaite = 0pts
+#     Critères de départage: Différence de buts
+#     """
+#     try:
+#         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+#         params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4401"  # U14 Filles
+#         }
+#         
+#         response = requests.get(url, params=params)
+#         data = response.json()
+#         
+#         if data.get("ResponseCode") == "200" and "Response" in data:
+#             matches_raw = data["Response"].get("RencontresArray", {})
+#             
+#             # Dictionnaire pour stocker les stats de chaque équipe
+#             standings = {}
+#             
+#             for match in matches_raw.values():
+#                 # Récupérer les infos du match
+#                 equipe1_nom = match.get("Equipe1", {}).get("EquipeNom", "TBD")
+#                 equipe2_nom = match.get("Equipe2", {}).get("EquipeNom", "TBD")
+#                 but1 = match.get("Scores", {}).get("RencButsEqp1")
+#                 but2 = match.get("Scores", {}).get("RencButsEqp2")
+#                 
+#                 # Ignorer les matchs non joués (pas de score)
+#                 if not but1 or not but2:
+#                     continue
+#                 
+#                 but1 = int(but1)
+#                 but2 = int(but2)
+#                 
+#                 # Initialiser les équipes si pas encore dans le classement
+#                 if equipe1_nom not in standings:
+#                     standings[equipe1_nom] = {
+#                         "equipe": equipe1_nom,
+#                         "joues": 0,
+#                         "gagnees": 0,
+#                         "nulles": 0,
+#                         "perdues": 0,
+#                         "buts_pour": 0,
+#                         "buts_contre": 0,
+#                         "points": 0
+#                     }
+#                 
+#                 if equipe2_nom not in standings:
+#                     standings[equipe2_nom] = {
+#                         "equipe": equipe2_nom,
+#                         "joues": 0,
+#                         "gagnees": 0,
+#                         "nulles": 0,
+#                         "perdues": 0,
+#                         "buts_pour": 0,
+#                         "buts_contre": 0,
+#                         "points": 0
+#                     }
+#                 
+#                 # Mettre à jour les stats
+#                 standings[equipe1_nom]["joues"] += 1
+#                 standings[equipe1_nom]["buts_pour"] += but1
+#                 standings[equipe1_nom]["buts_contre"] += but2
+#                 
+#                 standings[equipe2_nom]["joues"] += 1
+#                 standings[equipe2_nom]["buts_pour"] += but2
+#                 standings[equipe2_nom]["buts_contre"] += but1
+#                 
+#                 # Calculer les points
+#                 if but1 > but2:  # Équipe 1 gagne
+#                     standings[equipe1_nom]["gagnees"] += 1
+#                     standings[equipe1_nom]["points"] += 3
+#                     standings[equipe2_nom]["perdues"] += 1
+#                 elif but2 > but1:  # Équipe 2 gagne
+#                     standings[equipe2_nom]["gagnees"] += 1
+#                     standings[equipe2_nom]["points"] += 3
+#                     standings[equipe1_nom]["perdues"] += 1
+#                 else:  # Match nul
+#                     standings[equipe1_nom]["nulles"] += 1
+#                     standings[equipe1_nom]["points"] += 1
+#                     standings[equipe2_nom]["nulles"] += 1
+#                     standings[equipe2_nom]["points"] += 1
+#             
+#             # Calculer la différence de buts et trier
+#             classement = []
+#             for equipe in standings.values():
+#                 equipe["difference_buts"] = equipe["buts_pour"] - equipe["buts_contre"]
+#                 classement.append(equipe)
+#             
+#             # Trier par: Points DESC, Différence de buts DESC, Buts marqués DESC
+#             classement.sort(key=lambda x: (-x["points"], -x["difference_buts"], -x["buts_pour"]))
+#             
+#             return {"success": True, "data": classement, "count": len(classement)}
+#         else:
+#             return {"success": False, "data": [], "count": 0}
+#             
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors du calcul du classement U14 Filles: {str(e)}")
+# 
+# 
+# # ============================================
+# # ENDPOINTS GÉNÉRIQUES - GAZON & SALLE
+# # ============================================
+# # Ces endpoints supportent à la fois Gazon et Salle
+# # Gazon: /api/v1/gazon/u14-garcons/phases
+# # Salle: /api/v1/salle/u14-garcons/phases (quand les données arriveront)
+# 
+# # Mapping discipline -> ManifIds
+# MANIFESTATION_IDS = {
+#     "gazon": {
+#         "u14-garcons": "4400",
+#         "u14-filles": "4401",
+#     },
+#     "salle": {
+#         "u14-garcons": "",  # À remplir quand les données arriveront
+#         "u14-filles": "",   # À remplir quand les données arriveront
+#     }
+# }
+# 
+# @app.get("/api/v1/{discipline}/u14-garcons/phases", tags=["Interligues U14 - Générique"], include_in_schema=False)
+# async def get_u14_garcons_phases_generic(discipline: str):
+#     """
+#     Récupère les phases des Interligues U14 Garçons pour une discipline donnée.
+#     
+#     Args:
+#         discipline: "gazon" ou "salle"
+#         
+#     Returns:
+#         Liste des phases
+#         
+#     Example:
+#         /api/v1/gazon/u14-garcons/phases
+#     """
+#     discipline = discipline.lower()
+#     if discipline not in MANIFESTATION_IDS or "u14-garcons" not in MANIFESTATION_IDS[discipline]:
+#         raise HTTPException(status_code=400, detail=f"Discipline '{discipline}' non supportée. Utilisez 'gazon' ou 'salle'.")
+#     
+#     manif_id = MANIFESTATION_IDS[discipline]["u14-garcons"]
+#     if not manif_id:
+#         raise HTTPException(status_code=503, detail=f"Les données pour {discipline} U14 Garçons ne sont pas encore disponibles.")
+#     
+#     phases = get_phases_for_manifestation(manif_id)
+#     if phases is None:
+#         raise HTTPException(status_code=503, detail="Impossible de récupérer les phases.")
+#     
+#     return {
+#         "success": True,
+#         "data": phases,
+#         "count": len(phases),
+#         "discipline": discipline,
+#         "categorie": "U14 Garçons"
+#     }
+# 
+# @app.get("/api/v1/{discipline}/u14-garcons/poules/{phase_id}", tags=["Interligues U14 - Générique"], include_in_schema=False)
+# async def get_u14_garcons_poules_generic(discipline: str, phase_id: str):
+#     """
+#     Récupère les poules et rencontres pour une phase des Interligues U14 Garçons.
+#     
+#     Args:
+#         discipline: "gazon" ou "salle"
+#         phase_id: L'ID de la phase
+#         
+#     Returns:
+#         Liste des poules avec leurs rencontres
+#         
+#     Example:
+#         /api/v1/gazon/u14-garcons/poules/7174
+#     """
+#     discipline = discipline.lower()
+#     if discipline not in MANIFESTATION_IDS or "u14-garcons" not in MANIFESTATION_IDS[discipline]:
+#         raise HTTPException(status_code=400, detail=f"Discipline '{discipline}' non supportée. Utilisez 'gazon' ou 'salle'.")
+#     
+#     manif_id = MANIFESTATION_IDS[discipline]["u14-garcons"]
+#     if not manif_id:
+#         raise HTTPException(status_code=503, detail=f"Les données pour {discipline} U14 Garçons ne sont pas encore disponibles.")
+#     
+#     # Données manuelles pour gazon uniquement (en attente de confirmation pour salle)
+#     poules_mapping_gazon = {
+#         "11694": ("Demi-Finale 1A vs 2B", [
+#             create_placeholder_match("Île-de-France vs La Réunion", "2025-10-29", "09:00"),
+#         ]),
+#         "11695": ("Demi-Finale 1B vs 2A", [
+#             create_placeholder_match("Hauts-de-France vs Normandie", "2025-10-29", "10:10"),
+#         ]),
+#         "11696": ("Demi-Finale 3A vs 4B", [
+#             create_placeholder_match("Nouvelle Aquitaine vs Auvergne-Rhône-Alpes", "2025-10-29", "11:20"),
+#         ]),
+#         "11697": ("Demi-Finale 4A vs 3B", [
+#             create_placeholder_match("Pays de la Loire vs Occitanie", "2025-10-29", "12:30"),
+#         ]),
+#     }
+#     
+#     poules_mapping = poules_mapping_gazon if discipline == "gazon" else {}
+#     poules = get_poules_for_phase(manif_id, phase_id, poules_mapping)
+#     
+#     return {
+#         "success": True,
+#         "data": poules,
+#         "count": len(poules),
+#         "discipline": discipline,
+#         "categorie": "U14 Garçons",
+#         "phase_id": phase_id,
+#         "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
+#     }
+# 
+# @app.get("/api/v1/{discipline}/u14-filles/phases", tags=["Interligues U14 - Générique"], include_in_schema=False)
+# async def get_u14_filles_phases_generic(discipline: str):
+#     """
+#     Récupère les phases des Interligues U14 Filles pour une discipline donnée.
+#     
+#     Args:
+#         discipline: "gazon" ou "salle"
+#         
+#     Returns:
+#         Liste des phases
+#         
+#     Example:
+#         /api/v1/gazon/u14-filles/phases
+#     """
+#     discipline = discipline.lower()
+#     if discipline not in MANIFESTATION_IDS or "u14-filles" not in MANIFESTATION_IDS[discipline]:
+#         raise HTTPException(status_code=400, detail=f"Discipline '{discipline}' non supportée. Utilisez 'gazon' ou 'salle'.")
+#     
+#     manif_id = MANIFESTATION_IDS[discipline]["u14-filles"]
+#     if not manif_id:
+#         raise HTTPException(status_code=503, detail=f"Les données pour {discipline} U14 Filles ne sont pas encore disponibles.")
+#     
+#     phases = get_phases_for_manifestation(manif_id)
+#     if phases is None:
+#         raise HTTPException(status_code=503, detail="Impossible de récupérer les phases.")
+#     
+#     return {
+#         "success": True,
+#         "data": phases,
+#         "count": len(phases),
+#         "discipline": discipline,
+#         "categorie": "U14 Filles"
+#     }
+# 
+# @app.get("/api/v1/{discipline}/u14-filles/poules/{phase_id}", tags=["Interligues U14 - Générique"], include_in_schema=False)
+# async def get_u14_filles_poules_generic(discipline: str, phase_id: str):
+#     """
+#     Récupère les poules et rencontres pour une phase des Interligues U14 Filles.
+#     
+#     Args:
+#         discipline: "gazon" ou "salle"
+#         phase_id: L'ID de la phase
+#         
+#     Returns:
+#         Liste des poules avec leurs rencontres
+#         
+#     Example:
+#         /api/v1/gazon/u14-filles/poules/7182
+#     """
+#     discipline = discipline.lower()
+#     if discipline not in MANIFESTATION_IDS or "u14-filles" not in MANIFESTATION_IDS[discipline]:
+#         raise HTTPException(status_code=400, detail=f"Discipline '{discipline}' non supportée. Utilisez 'gazon' ou 'salle'.")
+#     
+#     manif_id = MANIFESTATION_IDS[discipline]["u14-filles"]
+#     if not manif_id:
+#         raise HTTPException(status_code=503, detail=f"Les données pour {discipline} U14 Filles ne sont pas encore disponibles.")
+#     
+#     # Données manuelles pour gazon uniquement
+#     poules_mapping_gazon = {
+#         "11702": ("Places 1 et 2", [
+#             create_placeholder_match("Finale du Championnat", "2025-10-30", "12:30", "La Boulie"),
+#         ]),
+#         "11703": ("Places 3 et 4", [
+#             create_placeholder_match("Match pour la médaille de bronze", "2025-10-30", "10:10", "La Boulie"),
+#         ]),
+#         "11704": ("Places 5 et 6", [
+#             create_placeholder_match("Classement 5e/6e place", "2025-10-30", "10:40", "Asnières"),
+#         ]),
+#     }
+#     
+#     poules_mapping = poules_mapping_gazon if discipline == "gazon" else {}
+#     poules = get_poules_for_phase(manif_id, phase_id, poules_mapping)
+#     
+#     return {
+#         "success": True,
+#         "data": poules,
+#         "count": len(poules),
+#         "discipline": discipline,
+#         "categorie": "U14 Filles",
+#         "phase_id": phase_id,
+#         "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
+#     }
+# 
+# 
+# @app.get("/api/v1/interligues-u14-garcons/matchs", tags=["Interligues U14"], summary="Matchs U14 Garçons")
+# def get_matchs_interligues_u14_garcons():
+#     """
+#     Récupère les matchs des Interligues U14 Garçons (Championnat de France des Régions).
+#     
+#     Returns:
+#         Liste des matchs U14 Garçons avec format standardisé
+#     """
+#     try:
+#         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+#         params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4400",  # U14 Garçons
+#             "PhaseId": "",
+#             "PouleId": "",
+#             "TournId": "",
+#             "JourId": "",
+#             "StructureCodeParticipante": "",
+#             "EqpId": "",
+#             "EqpIdDomicile": "",
+#             "StructureCodeDomicile": "",
+#             "EqpIdVisiteurs": "",
+#             "StructureCodeVisiteurs": "",
+#             "StructureCodeTerrain": "",
+#             "StructureCodeLieuPratique": ""
+#         }
+#         
+#         response = requests.get(url, params=params)
+#         data = response.json()
+#         
+#         if data.get("ResponseCode") == "200" and "Response" in data:
+#             matches_raw = data["Response"].get("RencontresArray", {})
+#             # Transformer les données au format attendu par le Dashboard avec RencId
+#             matches_formatted = []
+#             for match in matches_raw.values():
+#                 formatted_match = format_match_data(match, include_renc_id=True)
+#                 # Ajouter le champ poule s'il existe
+#                 formatted_match["poule"] = match.get("Poule", {}).get("PouleLib", "")
+#                 matches_formatted.append(formatted_match)
+#             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
+#         else:
+#             return {"success": False, "data": [], "count": 0}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons: {str(e)}")
+# 
+# 
+# @app.get("/api/v1/interligues-u14-garcons-poule-a/matchs", tags=["Interligues U14"])
+# async def get_matchs_interligues_u14_garcons_poule_a():
+#     """
+#     Récupère les matchs des Interligues U14 Garçons - POULE A uniquement.
+#     """
+#     try:
+#         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+#         params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4400"
+#         }
+#         
+#         response = requests.get(url, params=params)
+#         data = response.json()
+#         
+#         if data.get("ResponseCode") == "200" and "Response" in data:
+#             matches_raw = data["Response"].get("RencontresArray", {})
+#             # Filtrer et transformer les données pour Poule A seulement avec RencId
+#             matches_formatted = []
+#             for match in matches_raw.values():
+#                 # Filtrer par Poule A
+#                 if match.get("Poule", {}).get("PouleLib") == "Poule A":
+#                     formatted_match = format_match_data(match, include_renc_id=True)
+#                     formatted_match["poule"] = match.get("Poule", {}).get("PouleLib", "")
+#                     matches_formatted.append(formatted_match)
+#             
+#             # Vérifier les matchs terminés et envoyer des notifications
+#             check_and_notify_finished_matches(matches_formatted, "u14-garcons-a", "U14 Garçons - Poule A")
+#             
+#             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
+#         else:
+#             return {"success": False, "data": [], "count": 0}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons Poule A: {str(e)}")
+# 
+# 
+# @app.get("/api/v1/interligues-u14-garcons-poule-b/matchs", tags=["Interligues U14"])
+# async def get_matchs_interligues_u14_garcons_poule_b():
+#     """
+#     Récupère les matchs des Interligues U14 Garçons - POULE B uniquement.
+#     """
+#     try:
+#         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+#         params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4400"
+#         }
+#         
+#         response = requests.get(url, params=params)
+#         data = response.json()
+#         
+#         if data.get("ResponseCode") == "200" and "Response" in data:
+#             matches_raw = data["Response"].get("RencontresArray", {})
+#             # Filtrer et transformer les données pour Poule B seulement
+#             matches_formatted = []
+#             for match in matches_raw.values():
+#                 # Filtrer par Poule B
+#                 if match.get("Poule", {}).get("PouleLib") == "Poule B":
+#                     matches_formatted.append(format_match_data(match))
+#             
+#             # Vérifier les matchs terminés et envoyer des notifications
+#             check_and_notify_finished_matches(matches_formatted, "u14-garcons-b", "U14 Garçons - Poule B")
+#             
+#             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
+#         else:
+#             return {"success": False, "data": [], "count": 0}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des matchs U14 Garçons Poule B: {str(e)}")
+# 
+# 
+# @app.get("/api/v1/interligues-u14-garcons/phases", tags=["Interligues U14"])
+# async def get_interligues_u14_garcons_phases():
+#     """
+#     Récupère les phases (groupes, 1/2 finales, finales) des Interligues U14 Garçons.
+#     Permet de suivre l'évolution de la compétition.
+#     """
+#     try:
+#         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPhases"
+#         params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4400"  # U14 Garçons
+#         }
+#         
+#         response = requests.get(url, params=params, timeout=10)
+#         response.raise_for_status()
+#         data = response.json()
+#         
+#         if data.get("ResponseCode") == "200" and "Response" in data:
+#             phases_raw = data["Response"].get("PhasesArray", {})
+#             phases_formatted = []
+#             
+#             for phase_id, phase in phases_raw.items():
+#                 phases_formatted.append({
+#                     "phase_id": phase.get("PhaseId"),
+#                     "libelle": phase.get("PhaseLib"),
+#                     "ordre": int(phase.get("PhaseOrdre", 0)),
+#                     "date_debut": phase.get("PhaseDateDebut"),
+#                     "date_fin": phase.get("PhaseDateFin"),
+#                     "type": phase.get("PhaseRencType")
+#                 })
+#             
+#             # Trier par ordre
+#             phases_formatted.sort(key=lambda x: x["ordre"])
+#             
+#             return {
+#                 "success": True,
+#                 "data": phases_formatted,
+#                 "count": len(phases_formatted)
+#             }
+#         else:
+#             return {"success": False, "data": [], "count": 0}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des phases: {str(e)}")
+# 
+# 
+# @app.get("/api/v1/interligues-u14-garcons/poules/{phase_id}", tags=["Interligues U14"])
+# async def get_interligues_u14_garcons_poules(phase_id: str):
+#     """
+#     Récupère les poules (matchups) pour une phase spécifique des Interligues U14 Garçons.
+#     Les rencontres s'ajoutent automatiquement dès que les équipes sont désignées.
+#     Inclut les données manuelles en attente de confirmation FFHockey.
+#     
+#     Args:
+#         phase_id: L'identifiant de la phase (ex: 7174 pour 1/2 finales)
+#         
+#     Returns:
+#         Liste des poules avec leurs rencontres
+#         
+#     Example:
+#         /api/v1/interligues-u14-garcons/poules/7174
+#     """
+#     try:
+#         # D'abord récupérer les poules
+#         poules_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPoules"
+#         poules_params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4400",  # U14 Garçons
+#             "PhaseId": phase_id
+#         }
+#         
+#         poules_response = requests.get(poules_url, params=poules_params, timeout=10)
+#         poules_response.raise_for_status()
+#         poules_data = poules_response.json()
+#         
+#         if poules_data.get("ResponseCode") != "200":
+#             return {"success": False, "data": [], "count": 0}
+#         
+#         poules_raw = poules_data.get("Response", {}).get("PoulesArray", {})
+#         poules_formatted = []
+#         
+#         # Données manuelles pour les demi-finales du 29/10 (en attente de confirmation)
+#         matches_demi_finales_29oct = [
+#             ("11694", "Demi-Finale 1A vs 2B", [
+#                 create_placeholder_match("Île-de-France vs La Réunion", "2025-10-29", "09:00"),
+#             ]),
+#             ("11695", "Demi-Finale 1B vs 2A", [
+#                 create_placeholder_match("Hauts-de-France vs Normandie", "2025-10-29", "10:10"),
+#             ]),
+#             ("11696", "Demi-Finale 3A vs 4B", [
+#                 create_placeholder_match("Nouvelle Aquitaine vs Auvergne-Rhône-Alpes", "2025-10-29", "11:20"),
+#             ]),
+#             ("11697", "Demi-Finale 4A vs 3B", [
+#                 create_placeholder_match("Pays de la Loire vs Occitanie", "2025-10-29", "12:30"),
+#             ]),
+#         ]
+#         
+#         # Données manuelles pour les matchs du 30/10 (finales et classements)
+#         matches_finales_30oct = [
+#             ("11702", "Match pour la 7e/8e place", [
+#                 create_placeholder_match("Classement 7e/8e place", "2025-10-30", "09:30", "Asnières"),
+#             ]),
+#             ("11703", "Match pour la 5e/6e place", [
+#                 create_placeholder_match("Classement 5e/6e place", "2025-10-30", "09:00", "La Boulie"),
+#             ]),
+#             ("11704", "Match pour la médaille de Bronze", [
+#                 create_placeholder_match("Match Bronze", "2025-10-30", "11:20", "La Boulie"),
+#             ]),
+#             ("11705", "Finale du Championnat", [
+#                 create_placeholder_match("Finale", "2025-10-30", "13:40", "La Boulie"),
+#             ]),
+#         ]
+#         
+#         # Mapper les poules avec les matchs manuels
+#         poules_mapping = {poule_id: (libelle, matches) for poule_id, libelle, matches in matches_demi_finales_29oct + matches_finales_30oct}
+#         
+#         # Pour chaque poule, récupérer les rencontres
+#         for poule_id, poule in poules_raw.items():
+#             poule_info = {
+#                 "poule_id": poule.get("PouleId"),
+#                 "libelle": poule.get("PouleLib"),
+#                 "rencontres": []
+#             }
+#             
+#             # Récupérer les rencontres pour cette poule
+#             try:
+#                 renc_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+#                 renc_params = {
+#                     "SaisonAnnee": "2026",
+#                     "ManifId": "4400",
+#                     "PouleId": poule_id
+#                 }
+#                 
+#                 renc_response = requests.get(renc_url, params=renc_params, timeout=10)
+#                 renc_response.raise_for_status()
+#                 renc_data = renc_response.json()
+#                 
+#                 if renc_data.get("ResponseCode") == "200":
+#                     rencontres_raw = renc_data.get("Response", {}).get("RencontresArray", {})
+#                     
+#                     for match in rencontres_raw.values():
+#                         formatted_match = format_match_data(match, include_renc_id=True)
+#                         poule_info["rencontres"].append(formatted_match)
+#                 
+#                 # Si pas de rencontres de FFHockey, ajouter les données manuelles si disponibles
+#                 if not poule_info["rencontres"] and poule_id in poules_mapping:
+#                     poule_info["rencontres"] = poules_mapping[poule_id][1]
+#                     poule_info["source"] = "manual"  # Indiquer que c'est une donnée manuelle
+#                     
+#             except:
+#                 # Si pas de rencontres FFHockey, ajouter les données manuelles
+#                 if poule_id in poules_mapping:
+#                     poule_info["rencontres"] = poules_mapping[poule_id][1]
+#                     poule_info["source"] = "manual"
+#             
+#             poules_formatted.append(poule_info)
+#         
+#         return {
+#             "success": True,
+#             "data": poules_formatted,
+#             "count": len(poules_formatted),
+#             "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
+#         }
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des poules: {str(e)}")
+# 
+# 
+# @app.get("/api/v1/interligues-u14-filles/phases", tags=["Interligues U14"])
+# async def get_interligues_u14_filles_phases():
+#     """
+#     Récupère les phases (groupes, finale) des Interligues U14 Filles.
+#     Permet de suivre l'évolution de la compétition.
+#     """
+#     try:
+#         url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPhases"
+#         params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4401"  # U14 Filles
+#         }
+#         
+#         response = requests.get(url, params=params, timeout=10)
+#         response.raise_for_status()
+#         data = response.json()
+#         
+#         if data.get("ResponseCode") == "200" and "Response" in data:
+#             phases_raw = data["Response"].get("PhasesArray", {})
+#             phases_formatted = []
+#             
+#             for phase_id, phase in phases_raw.items():
+#                 phases_formatted.append({
+#                     "phase_id": phase.get("PhaseId"),
+#                     "libelle": phase.get("PhaseLib"),
+#                     "ordre": int(phase.get("PhaseOrdre", 0)),
+#                     "date_debut": phase.get("PhaseDateDebut"),
+#                     "date_fin": phase.get("PhaseDateFin"),
+#                     "type": phase.get("PhaseRencType")
+#                 })
+#             
+#             # Trier par ordre
+#             phases_formatted.sort(key=lambda x: x["ordre"])
+#             
+#             return {
+#                 "success": True,
+#                 "data": phases_formatted,
+#                 "count": len(phases_formatted)
+#             }
+#         else:
+#             return {"success": False, "data": [], "count": 0}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des phases U14 Filles: {str(e)}")
+# 
+# 
+# @app.get("/api/v1/interligues-u14-filles/poules/{phase_id}", tags=["Interligues U14"])
+# async def get_interligues_u14_filles_poules(phase_id: str):
+#     """
+#     Récupère les poules (matchups) pour une phase spécifique des Interligues U14 Filles.
+#     Les rencontres s'ajoutent automatiquement dès que les équipes sont désignées.
+#     Inclut les données manuelles en attente de confirmation FFHockey.
+#     
+#     Args:
+#         phase_id: L'identifiant de la phase (ex: 7182 pour finale)
+#         
+#     Returns:
+#         Liste des poules avec leurs rencontres
+#         
+#     Example:
+#         /api/v1/interligues-u14-filles/poules/7182
+#     """
+#     try:
+#         # D'abord récupérer les poules
+#         poules_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerPoules"
+#         poules_params = {
+#             "SaisonAnnee": "2026",
+#             "ManifId": "4401",  # U14 Filles
+#             "PhaseId": phase_id
+#         }
+#         
+#         poules_response = requests.get(poules_url, params=poules_params, timeout=10)
+#         poules_response.raise_for_status()
+#         poules_data = poules_response.json()
+#         
+#         if poules_data.get("ResponseCode") != "200":
+#             return {"success": False, "data": [], "count": 0}
+#         
+#         poules_raw = poules_data.get("Response", {}).get("PoulesArray", {})
+#         poules_formatted = []
+#         
+#         # Données manuelles pour les finales du 30/10 (en attente de confirmation)
+#         matches_finales_30oct = [
+#             ("11702", "Places 1 et 2", [
+#                 create_placeholder_match("Finale du Championnat", "2025-10-30", "12:30", "La Boulie"),
+#             ]),
+#             ("11703", "Places 3 et 4", [
+#                 create_placeholder_match("Match pour la médaille de bronze", "2025-10-30", "10:10", "La Boulie"),
+#             ]),
+#             ("11704", "Places 5 et 6", [
+#                 create_placeholder_match("Classement 5e/6e place", "2025-10-30", "10:40", "Asnières"),
+#             ]),
+#         ]
+#         
+#         # Mapper les poules avec les matchs manuels
+#         poules_mapping = {poule_id: (libelle, matches) for poule_id, libelle, matches in matches_finales_30oct}
+#         
+#         # Pour chaque poule, récupérer les rencontres
+#         for poule_id, poule in poules_raw.items():
+#             poule_info = {
+#                 "poule_id": poule.get("PouleId"),
+#                 "libelle": poule.get("PouleLib"),
+#                 "rencontres": []
+#             }
+#             
+#             # Récupérer les rencontres pour cette poule
+#             try:
+#                 renc_url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
+#                 renc_params = {
+#                     "SaisonAnnee": "2026",
+#                     "ManifId": "4401",
+#                     "PouleId": poule_id
+#                 }
+#                 
+#                 renc_response = requests.get(renc_url, params=renc_params, timeout=10)
+#                 renc_response.raise_for_status()
+#                 renc_data = renc_response.json()
+#                 
+#                 if renc_data.get("ResponseCode") == "200":
+#                     rencontres_raw = renc_data.get("Response", {}).get("RencontresArray", {})
+#                     
+#                     for match in rencontres_raw.values():
+#                         formatted_match = format_match_data(match, include_renc_id=True)
+#                         poule_info["rencontres"].append(formatted_match)
+#                 
+#                 # Si pas de rencontres de FFHockey, ajouter les données manuelles si disponibles
+#                 if not poule_info["rencontres"] and poule_id in poules_mapping:
+#                     poule_info["rencontres"] = poules_mapping[poule_id][1]
+#                     poule_info["source"] = "manual"  # Indiquer que c'est une donnée manuelle
+#                     
+#             except:
+#                 # Si pas de rencontres FFHockey, ajouter les données manuelles
+#                 if poule_id in poules_mapping:
+#                     poule_info["rencontres"] = poules_mapping[poule_id][1]
+#                     poule_info["source"] = "manual"
+#             
+#             poules_formatted.append(poule_info)
+#         
+#         return {
+#             "success": True,
+#             "data": poules_formatted,
+#             "count": len(poules_formatted),
+#             "note": "Les données manuelles (source: manual) seront confirmées/remplacées dès que FFHockey les fournie."
+#         }
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération des poules U14 Filles: {str(e)}")
+# 
+# 
+# # ============================================
 # ENDPOINTS EMAIL NOTIFICATIONS
 # ============================================
 
