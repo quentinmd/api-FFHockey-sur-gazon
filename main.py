@@ -780,7 +780,7 @@ async def serve_score_only():
 async def endpoint_classement_elite_hommes_gazon():
     """
     Récupère le classement de l'élite hommes sur gazon.
-    Données depuis FFHockey (ManifId: 4399).
+    Données depuis FFHockey (ManifId: 4317).
     
     Returns:
         Classement des équipes Elite Hommes Gazon
@@ -794,7 +794,7 @@ async def endpoint_classement_elite_hommes_gazon():
             "count": len(ranking_data),
             "championship": "elite-hommes-gazon",
             "discipline": "gazon",
-            "note": "✅ Données réelles depuis FFHockey (ManifId: 4399)"
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4317)"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -804,7 +804,7 @@ async def endpoint_classement_elite_hommes_gazon():
 async def endpoint_matchs_elite_hommes_gazon():
     """
     Récupère les matchs de l'élite hommes sur gazon.
-    Données depuis FFHockey (ManifId: 4399).
+    Données depuis FFHockey (ManifId: 4317).
     
     Returns:
         Liste des matchs Elite Hommes Gazon
@@ -820,7 +820,7 @@ async def endpoint_matchs_elite_hommes_gazon():
             "count": len(matches_data),
             "championship": "elite-hommes-gazon",
             "discipline": "gazon",
-            "note": "✅ Données réelles depuis FFHockey (ManifId: 4399)"
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4317)"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -834,7 +834,7 @@ async def endpoint_matchs_elite_hommes_gazon():
 async def endpoint_classement_elite_femmes_gazon():
     """
     Récupère le classement de l'élite femmes sur gazon.
-    Données depuis FFHockey (ManifId: 4404).
+    Données depuis FFHockey (ManifId: 4318).
     
     Returns:
         Classement des équipes Elite Femmes Gazon
@@ -848,7 +848,7 @@ async def endpoint_classement_elite_femmes_gazon():
             "count": len(ranking_data),
             "championship": "elite-femmes-gazon",
             "discipline": "gazon",
-            "note": "✅ Données réelles depuis FFHockey (ManifId: 4404)"
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4318)"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -858,7 +858,7 @@ async def endpoint_classement_elite_femmes_gazon():
 async def endpoint_matchs_elite_femmes_gazon():
     """
     Récupère les matchs de l'élite femmes sur gazon.
-    Données depuis FFHockey (ManifId: 4404).
+    Données depuis FFHockey (ManifId: 4318).
     
     Returns:
         Liste des matchs Elite Femmes Gazon
@@ -874,7 +874,7 @@ async def endpoint_matchs_elite_femmes_gazon():
             "count": len(matches_data),
             "championship": "elite-femmes-gazon",
             "discipline": "gazon",
-            "note": "✅ Données réelles depuis FFHockey (ManifId: 4404)"
+            "note": "✅ Données réelles depuis FFHockey (ManifId: 4318)"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

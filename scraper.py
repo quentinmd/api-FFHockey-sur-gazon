@@ -668,7 +668,7 @@ def get_matchs_salle_elite_femmes() -> List[Dict]:
 
 # ============================================
 # Elite Hommes Gazon (NEW)
-# ManifId: 4399 (Saison 2026)
+# ManifId: 4317 (Saison 2026)
 # ============================================
 
 def get_ranking_elite_hommes_gazon() -> List[Dict]:
@@ -680,12 +680,12 @@ def get_ranking_elite_hommes_gazon() -> List[Dict]:
 
 def get_matches_elite_hommes_gazon() -> List[Dict]:
     """Récupère les matchs de Elite Hommes Gazon."""
-    return _get_matches_by_manif("4399")
+    return _get_matches_by_manif("4317")
 
 
 # ============================================
 # Elite Femmes Gazon (NEW)
-# ManifId: 4404 (Saison 2026)
+# ManifId: 4318 (Saison 2026)
 # ============================================
 
 def get_ranking_elite_femmes_gazon() -> List[Dict]:
@@ -697,7 +697,7 @@ def get_ranking_elite_femmes_gazon() -> List[Dict]:
 
 def get_matches_elite_femmes_gazon() -> List[Dict]:
     """Récupère les matchs de Elite Femmes Gazon."""
-    return _get_matches_by_manif("4404")
+    return _get_matches_by_manif("4318")
 
 
 # ============================================
