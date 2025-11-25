@@ -264,6 +264,7 @@ GET /score-only.html?championship=elite-femmes&renc_id=193082
 | Salle Elite Femmes | `salle-elite-femmes` | Var. |
 | U14 Garçons | `interligues-u14-garcons` | 20+ |
 | U14 Filles | `interligues-u14-filles` | 18+ |
+| N2 Hommes Salle Zone 3 | `n2-salle-zone3` | Var. |
 | Carquefou 1SH | `carquefou-1sh` | 10 |
 | Carquefou 2SH | `carquefou-2sh` | 10 |
 
