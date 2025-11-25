@@ -29,6 +29,91 @@ def _normalize_team_name(team_name: str) -> str:
     return normalized
 
 
+def _calculate_ranking_from_matches(matches: List[Dict]) -> List[Dict]:
+    """
+    Fonction interne pour calculer le classement à partir d'une liste de matchs.
+    
+    Args:
+        matches: Liste des matchs avec scores
+    
+    Returns:
+        List[Dict]: Liste des équipes triées par classement.
+    """
+    teams_stats = {}
+    
+    for match in matches:
+        # Filtrer les matchs terminés
+        if match.get("statut") != "FINISHED" or match.get("score_domicile") is None:
+            continue
+        
+        equipe1_name = match.get("equipe_domicile", "")
+        equipe2_name = match.get("equipe_exterieur", "")
+        but1 = match.get("score_domicile", 0)
+        but2 = match.get("score_exterieur", 0)
+        
+        if not equipe1_name or not equipe2_name:
+            continue
+        
+        # Initialiser les équipes si nécessaire
+        if equipe1_name not in teams_stats:
+            teams_stats[equipe1_name] = {
+                "joues": 0, "gagnes": 0, "nuls": 0, "perdus": 0,
+                "buts_pour": 0, "buts_contre": 0, "points": 0
+            }
+        if equipe2_name not in teams_stats:
+            teams_stats[equipe2_name] = {
+                "joues": 0, "gagnes": 0, "nuls": 0, "perdus": 0,
+                "buts_pour": 0, "buts_contre": 0, "points": 0
+            }
+        
+        # Mise à jour des statistiques
+        teams_stats[equipe1_name]["joues"] += 1
+        teams_stats[equipe2_name]["joues"] += 1
+        
+        teams_stats[equipe1_name]["buts_pour"] += but1
+        teams_stats[equipe1_name]["buts_contre"] += but2
+        
+        teams_stats[equipe2_name]["buts_pour"] += but2
+        teams_stats[equipe2_name]["buts_contre"] += but1
+        
+        # Calculer les points
+        if but1 > but2:
+            teams_stats[equipe1_name]["gagnes"] += 1
+            teams_stats[equipe1_name]["points"] += 3
+            teams_stats[equipe2_name]["perdus"] += 1
+        elif but2 > but1:
+            teams_stats[equipe2_name]["gagnes"] += 1
+            teams_stats[equipe2_name]["points"] += 3
+            teams_stats[equipe1_name]["perdus"] += 1
+        else:
+            teams_stats[equipe1_name]["nuls"] += 1
+            teams_stats[equipe1_name]["points"] += 1
+            teams_stats[equipe2_name]["nuls"] += 1
+            teams_stats[equipe2_name]["points"] += 1
+    
+    # Créer la liste de classement triée
+    ranking_list = []
+    for position, (team_name, stats) in enumerate(
+        sorted(teams_stats.items(), key=lambda x: (-x[1]["points"], -(x[1]["buts_pour"] - x[1]["buts_contre"]))),
+        1
+    ):
+        ranking_dict = {
+            "position": position,
+            "equipe": team_name,
+            "points": stats["points"],
+            "joues": stats["joues"],
+            "gagnes": stats["gagnes"],
+            "nuls": stats["nuls"],
+            "perdus": stats["perdus"],
+            "buts_pour": stats["buts_pour"],
+            "buts_contre": stats["buts_contre"],
+            "difference": stats["buts_pour"] - stats["buts_contre"]
+        }
+        ranking_list.append(ranking_dict)
+    
+    return ranking_list
+
+
 def _calculate_ranking(manif_id: str) -> List[Dict]:
     """
     Fonction interne pour calculer le classement à partir d'un ManifId.
@@ -587,8 +672,10 @@ def get_matchs_salle_elite_femmes() -> List[Dict]:
 # ============================================
 
 def get_ranking_elite_hommes_gazon() -> List[Dict]:
-    """Récupère le classement de Elite Hommes Gazon."""
-    return _calculate_ranking("4399")
+    """Récupère le classement de Elite Hommes Gazon en calculant à partir des matchs."""
+    # Récupérer les matchs et calculer le classement
+    matches = get_matches_elite_hommes_gazon()
+    return _calculate_ranking_from_matches(matches)
 
 
 def get_matches_elite_hommes_gazon() -> List[Dict]:
@@ -602,8 +689,10 @@ def get_matches_elite_hommes_gazon() -> List[Dict]:
 # ============================================
 
 def get_ranking_elite_femmes_gazon() -> List[Dict]:
-    """Récupère le classement de Elite Femmes Gazon."""
-    return _calculate_ranking("4404")
+    """Récupère le classement de Elite Femmes Gazon en calculant à partir des matchs."""
+    # Récupérer les matchs et calculer le classement
+    matches = get_matches_elite_femmes_gazon()
+    return _calculate_ranking_from_matches(matches)
 
 
 def get_matches_elite_femmes_gazon() -> List[Dict]:
