@@ -1,0 +1,40 @@
+═══════════════════════════════════════════════════════════════════════════════
+🧹 NETTOYAGE DE LA DOCUMENTATION - 25 novembre 2025
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ NOUVEAU SYSTÈME DE DOCUMENTATION
+
+Fichiers principaux (à jour):
+────────────────────────────
+✓ README_CLEAN.md              ← Point d'entrée (vue d'ensemble)
+✓ API_DOCUMENTATION.md         ← Endpoints complets avec exemples
+✓ DOCUMENTATION_INDEX.md       ← Index de navigation
+✓ CHANGES_QUICK_SUMMARY.md     ← Derniers changements
+
+Dossier d'archive (_ARCHIVE_DOCS/):
+──────────────────────────────────
+✓ 27 fichiers documentations obsolètes archivés
+  - Déploiement anciens: 7 fichiers
+  - Emails: 4 fichiers
+  - Live Score: 7 fichiers
+  - Overlays: 3 fichiers
+  - Technique/Référence: 4 fichiers
+  - Endpoints (remplacé): 2 fichiers
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 STATISTIQUES
+
+Avant:   Dizaines de fichiers .md à la racine (CHANTIER)
+Après:   4 fichiers essentiels + 1 dossier archive organisé (PROPRE)
+
+Réduction: ~87% de clutter au niveau racine
+
+═══════════════════════════════════════════════════════════════════════════════
+🗺️  NAVIGATION RECOMMANDÉE
+
+1️⃣  Nouveau à l'API?         → Lire README_CLEAN.md
+2️⃣  Besoin des endpoints?    → Consulter API_DOCUMENTATION.md
+3️⃣  Perdu dans la docs?       → Voir DOCUMENTATION_INDEX.md
+4️⃣  Quoi de neuf?            → Check CHANGES_QUICK_SUMMARY.md
+
+═══════════════════════════════════════════════════════════════════════════════
