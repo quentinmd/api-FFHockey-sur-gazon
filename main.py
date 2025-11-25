@@ -16,10 +16,6 @@ import time
 from functools import wraps
 from cachetools import TTLCache
 from dotenv import load_dotenv
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 from bs4 import BeautifulSoup
 import firebase_admin
 from firebase_admin import credentials, db, auth
@@ -228,80 +224,12 @@ def cache_with_ttl(cache_store, ttl=None):
     return decorator
 
 
+# Notifications supprimées - Utiliser les webhooks
 
-scheduler = BackgroundScheduler()
 
-def check_all_matches_for_notifications():
-    """
-    Fonction appelée périodiquement pour vérifier tous les matchs
-    et envoyer les notifications automatiquement.
-    """
-    print("⏰ [Scheduler] Vérification automatique des matchs terminés...")
-    try:
-        import requests
-        
-        # Récupérer l'URL de base depuis l'environnement ou utiliser localhost
-        api_url = os.environ.get("API_URL", "http://localhost:8000")
-        
-        endpoints_to_check = [
-            ("elite-hommes", f"{api_url}/api/v1/elite-hommes/matchs", "Elite Hommes"),
-            ("elite-femmes", f"{api_url}/api/v1/elite-femmes/matchs", "Elite Femmes"),
-            ("carquefou-1sh", f"{api_url}/api/v1/carquefou/1sh/matchs", "Carquefou 1SH"),
-            ("carquefou-2sh", f"{api_url}/api/v1/carquefou/2sh/matchs", "Carquefou 2SH"),
-            ("carquefou-sd", f"{api_url}/api/v1/carquefou/sd/matchs", "Carquefou SD"),
-            # ("u14-garcons", f"{api_url}/api/v1/interligues-u14-garcons/matchs", "U14 Garçons"),
-            # ("u14-garcons-a", f"{api_url}/api/v1/interligues-u14-garcons-poule-a/matchs", "U14 Garçons Poule A"),
-            # ("u14-garcons-b", f"{api_url}/api/v1/interligues-u14-garcons-poule-b/matchs", "U14 Garçons Poule B"),
-            # ("u14-filles", f"{api_url}/api/v1/interligues-u14-filles/matchs", "U14 Filles"),
-        ]
-        
-        for prefix, endpoint_url, comp_name in endpoints_to_check:
-            try:
-                response = requests.get(endpoint_url, timeout=10)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("success") and data.get("data"):
-                        matches = data.get("data", [])
-                        print(f"  ✅ {comp_name}: {len(matches)} matchs vérifiés")
-                        # Appeler la fonction pour vérifier et notifier les matchs terminés
-                        check_and_notify_finished_matches(matches, prefix, comp_name)
-                else:
-                    print(f"  ❌ {comp_name}: Erreur {response.status_code}")
-            except Exception as e:
-                print(f"  ❌ {comp_name}: {str(e)}")
-    except Exception as e:
-        print(f"❌ [Scheduler] Erreur: {str(e)}")
-
-# Ajouter le job qui s'exécute toutes les 30 minutes
-scheduler.add_job(
-    check_all_matches_for_notifications,
-    trigger=IntervalTrigger(minutes=30),
-    id='check_matches_notifications',
-    name='Vérifier les matchs terminés toutes les 30 minutes',
-    replace_existing=True
-)
-
-@app.on_event("startup")
-async def start_scheduler():
-    """Démarre le scheduler au lancement de l'API."""
-    if not scheduler.running:
-        scheduler.start()
-        print("✅ [Scheduler] Démarré - Vérification toutes les 30 minutes")
-
-@app.on_event("shutdown")
-async def shutdown_scheduler():
-    """Arrête le scheduler à l'arrêt de l'API."""
-    if scheduler.running:
-        scheduler.shutdown()
-        print("❌ [Scheduler] Arrêté")
 
 # ============================================
-# CONFIGURATION EMAIL GMAIL
 # ============================================
-
-# Modèle pour la souscription email
-class EmailSubscription(BaseModel):
-    email: str
 
 # ============================================
 # MODELS POUR LIVE SCORE (FIREBASE)
@@ -328,44 +256,6 @@ class CardUpdate(BaseModel):
 class MatchStatusUpdate(BaseModel):
     """Modèle pour mettre à jour le statut d'un match"""
     statut: str  # "SCHEDULED", "LIVE", "FINISHED"
-
-# Stockage des emails abonnés (en fichier JSON pour persistence)
-SUBSCRIBERS_FILE = "email_subscribers.json"
-NOTIFIED_MATCHES_FILE = "notified_matches.json"
-
-def load_subscribers():
-    """Charge la liste des abonnés depuis le fichier."""
-    if os.path.exists(SUBSCRIBERS_FILE):
-        try:
-            with open(SUBSCRIBERS_FILE, 'r') as f:
-                return set(json.load(f))
-        except:
-            return set()
-    return set()
-
-def save_subscribers(subscribers):
-    """Sauvegarde la liste des abonnés dans un fichier."""
-    with open(SUBSCRIBERS_FILE, 'w') as f:
-        json.dump(list(subscribers), f, indent=2)
-
-def load_notified_matches():
-    """Charge la liste des matchs notifiés."""
-    if os.path.exists(NOTIFIED_MATCHES_FILE):
-        try:
-            with open(NOTIFIED_MATCHES_FILE, 'r') as f:
-                return set(json.load(f))
-        except:
-            return set()
-    return set()
-
-def save_notified_matches(matches):
-    """Sauvegarde la liste des matchs notifiés."""
-    with open(NOTIFIED_MATCHES_FILE, 'w') as f:
-        json.dump(list(matches), f, indent=2)
-
-# Charger les données existantes
-email_subscribers = load_subscribers()
-notified_matches = load_notified_matches()
 
 def format_match_data(match, include_renc_id=True):
     """
@@ -546,130 +436,6 @@ def get_poules_for_phase(manif_id, phase_id, poules_mapping=None):
     except Exception as e:
         print(f"❌ Erreur get_poules_for_phase({manif_id}, {phase_id}): {str(e)}")
         return []
-
-def send_match_finished_email(subscribers, match_data, competition_name):
-    """
-    Envoie un email à tous les abonnés quand un match se termine via SendGrid.
-    
-    Args:
-        subscribers: Set d'emails à notifier
-        match_data: Dictionnaire avec les infos du match
-        competition_name: Nom de la compétition
-    """
-    if not subscribers or not os.environ.get("SENDGRID_API_KEY"):
-        return False
-    
-    try:
-        # Récupérer la clé API SendGrid
-        sg = SendGridAPIClient(os.environ.get("SENDGRID_API_KEY"))
-        sender_email = "quentin.mouraud@carquefouhockeyclub.com"  # Email expéditeur (doit être vérifié dans SendGrid)
-        
-        # Préparer le contenu de l'email
-        equipe_domicile = match_data.get("equipe_domicile", "?")
-        equipe_exterieur = match_data.get("equipe_exterieur", "?")
-        score_domicile = match_data.get("score_domicile", "?")
-        score_exterieur = match_data.get("score_exterieur", "?")
-        date = match_data.get("date", "?")
-        
-        # Créer le corps de l'email en HTML
-        html_content = f"""
-        <html>
-            <body style="font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px;">
-                <div style="background: white; border-radius: 10px; padding: 30px; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #764ba2; text-align: center;">⚽ Fin de Match - Notificateur Hockey</h2>
-                    <hr style="border: none; border-top: 2px solid #667eea;">
-                    
-                    <p style="font-size: 14px; color: #666;">
-                        <strong>Compétition:</strong> {competition_name}
-                    </p>
-                    
-                    <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                        <div style="text-align: center;">
-                            <p style="font-size: 14px; color: #666; margin: 5px 0;">Date: {date}</p>
-                            <h1 style="color: #333; margin: 10px 0; font-size: 36px;">
-                                <span style="color: #667eea;">{equipe_domicile}</span>
-                                <span style="margin: 0 15px; color: #764ba2;">{score_domicile} - {score_exterieur}</span>
-                                <span style="color: #667eea;">{equipe_exterieur}</span>
-                            </h1>
-                        </div>
-                    </div>
-                    
-                    <p style="color: #666; font-size: 14px; line-height: 1.6;">
-                        Le match entre <strong>{equipe_domicile}</strong> et <strong>{equipe_exterieur}</strong> 
-                        s'est terminé sur le score de <strong>{score_domicile} - {score_exterieur}</strong>.
-                    </p>
-                    
-                    <div style="background: #f0f0f0; padding: 15px; border-left: 4px solid #667eea; margin-top: 20px;">
-                        <p style="margin: 0; color: #333; font-size: 12px;">
-                            Vous recevez cet email car vous êtes abonné aux notifications de fin de match du Hockey FFH.
-                        </p>
-                    </div>
-                    
-                    <hr style="border: none; border-top: 1px solid #ddd; margin-top: 30px;">
-                    <p style="text-align: center; color: #999; font-size: 12px;">
-                        © 2025 Hockey FFH Notificateur
-                    </p>
-                </div>
-            </body>
-        </html>
-        """
-        
-        # Envoyer à chaque abonné via SendGrid
-        for recipient_email in subscribers:
-            message = Mail(
-                from_email=sender_email,
-                to_emails=recipient_email,
-                subject=f"🏑 Fin de match: {equipe_domicile} vs {equipe_exterieur}",
-                html_content=html_content
-            )
-            
-            response = sg.send(message)
-            if response.status_code not in [200, 201, 202]:
-                print(f"Erreur SendGrid {response.status_code}: {response.body}")
-                return False
-        
-        return True
-        
-    except Exception as e:
-        print(f"Erreur lors de l'envoi d'email SendGrid: {str(e)}")
-        return False
-
-
-def check_and_notify_finished_matches(matches_data, competition_prefix, competition_name):
-    """
-    Fonction générique pour vérifier les matchs terminés et envoyer des emails.
-    Évite les doublons en gardant trace des matchs déjà notifiés.
-    
-    Args:
-        matches_data: Liste des matchs
-        competition_prefix: Préfixe pour l'ID unique (ex: "elite-hommes")
-        competition_name: Nom de la compétition pour l'email
-    """
-    global notified_matches
-    
-    for match in matches_data:
-        if match.get("statut") == "FINISHED":
-            # Créer un identifiant unique pour le match
-            # Préférer RencId si disponible (plus fiable), sinon utiliser les noms d'équipes et la date
-            if match.get("rencId"):
-                match_id = f"{competition_prefix}-renc-{match.get('rencId')}"
-            else:
-                # Normaliser les noms pour éviter les doublons dus aux caractères spéciaux
-                home_team = str(match.get('equipe_domicile', '')).lower().strip()
-                away_team = str(match.get('equipe_exterieur', '')).lower().strip()
-                match_date = str(match.get('date', '')).lower().strip()
-                match_id = f"{competition_prefix}-{home_team}-{away_team}-{match_date}"
-            
-            # Si le match n'a pas encore été notifié
-            if match_id not in notified_matches:
-                # Envoyer les emails
-                send_match_finished_email(email_subscribers, match, competition_name)
-                
-                # Marquer comme notifié
-                notified_matches.add(match_id)
-                save_notified_matches(notified_matches)
-                print(f"✉️ [Notification] Match notifié: {match_id}")
-
 
 def generate_renc_id(equipe_domicile, equipe_exterieur, date, seed=0):
     """
@@ -1047,7 +813,6 @@ async def endpoint_matchs_elite_hommes_gazon():
         matches_data = get_matches_elite_hommes_gazon_cached()
         
         # Vérifier et notifier les matchs terminés
-        check_and_notify_finished_matches(matches_data, "elite-hommes-gazon", "Elite Hommes Gazon")
         
         return {
             "success": True,
@@ -1102,7 +867,6 @@ async def endpoint_matchs_elite_femmes_gazon():
         matches_data = get_matches_elite_femmes_gazon_cached()
         
         # Vérifier et notifier les matchs terminés
-        check_and_notify_finished_matches(matches_data, "elite-femmes-gazon", "Elite Femmes Gazon")
         
         return {
             "success": True,
@@ -1242,7 +1006,6 @@ async def endpoint_matchs_elite_femmes_salle():
             print(f"⚠️  Firebase désactivé - Pas de sauvegarde")
         
         # Vérifier et notifier les matchs terminés
-        check_and_notify_finished_matches(matches_data, "salle-elite-femmes", "Elite Femmes Salle")
         
         return {
             "success": True,
@@ -1360,7 +1123,6 @@ def get_n2_salle_zone3_matchs():
                 print(f"⚠️  Erreur Firebase (non-bloquante): {str(firebase_error)}")
         
         # Vérifier et notifier les matchs terminés
-        check_and_notify_finished_matches(matches_data, "n2-salle-zone3", "N2 Hommes Salle Zone 3")
         
         return {
             "success": True,
@@ -1394,7 +1156,6 @@ async def endpoint_matchs_carquefou_sd():
         )
     
     # Vérifier et notifier les matchs terminés
-    check_and_notify_finished_matches(matches_data, "carquefou-sd", "Carquefou SD")
     
     return {
         "success": True,
@@ -1978,7 +1739,6 @@ async def get_matchs_interligues_u14_garcons_poule_a():
                     matches_formatted.append(formatted_match)
             
             # Vérifier les matchs terminés et envoyer des notifications
-            check_and_notify_finished_matches(matches_formatted, "u14-garcons-a", "U14 Garçons - Poule A")
             
             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
         else:
@@ -2012,7 +1772,6 @@ async def get_matchs_interligues_u14_garcons_poule_b():
                     matches_formatted.append(format_match_data(match))
             
             # Vérifier les matchs terminés et envoyer des notifications
-            check_and_notify_finished_matches(matches_formatted, "u14-garcons-b", "U14 Garçons - Poule B")
             
             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
         else:
@@ -2334,728 +2093,7 @@ async def get_interligues_u14_filles_poules(phase_id: str):
 
 
 # ============================================
-# ENDPOINTS EMAIL NOTIFICATIONS
 # ============================================
-
-@app.post("/api/v1/subscribe", tags=["Notifications"])
-async def subscribe_email(subscription: EmailSubscription):
-    """
-    S'abonner aux notifications de fin de match par email.
-    
-    Args:
-        subscription: Objet contenant l'email de l'abonné
-        
-    Returns:
-        Confirmation de l'abonnement
-    """
-    global email_subscribers
-    
-    email = subscription.email.lower().strip()
-    
-    # Validation simple de l'email
-    if "@" not in email:
-        raise HTTPException(status_code=400, detail="Email invalide")
-    
-    email_subscribers.add(email)
-    save_subscribers(email_subscribers)
-    
-    return {
-        "success": True,
-        "message": f"Abonné avec succès à {email}",
-        "total_subscribers": len(email_subscribers)
-    }
-
-
-@app.delete("/api/v1/unsubscribe", tags=["Notifications"])
-async def unsubscribe_email(subscription: EmailSubscription):
-    """
-    Se désabonner des notifications de fin de match par email.
-    
-    Args:
-        subscription: Objet contenant l'email à désabonner
-        
-    Returns:
-        Confirmation de la désinscription
-    """
-    global email_subscribers
-    
-    email = subscription.email.lower().strip()
-    
-    if email in email_subscribers:
-        email_subscribers.remove(email)
-        save_subscribers(email_subscribers)
-    
-    return {
-        "success": True,
-        "message": f"Désinscrit avec succès: {email}",
-        "total_subscribers": len(email_subscribers)
-    }
-
-
-@app.get("/api/v1/notifications/stats", tags=["Notifications"])
-async def notification_stats():
-    """
-    Obtenir les statistiques des notifications.
-    
-    Returns:
-        Nombre d'abonnés et de matchs notifiés
-    """
-    return {
-        "total_subscribers": len(email_subscribers),
-        "total_notified_matches": len(notified_matches),
-        "subscribers": list(email_subscribers) if email_subscribers else []
-    }
-
-
-@app.get("/api/v1/debug/email-test", tags=["Debug"])
-async def debug_email_test():
-    """
-    Endpoint de test pour déboguer les emails avec SendGrid.
-    Envoie un email de test et affiche tous les logs.
-    """
-    from datetime import datetime
-    
-    sendgrid_api_key = os.environ.get("SENDGRID_API_KEY")
-    
-    debug_info = {
-        "timestamp": str(datetime.now()),
-        "sendgrid_configured": bool(sendgrid_api_key),
-        "api_key_length": len(sendgrid_api_key) if sendgrid_api_key else 0,
-        "subscribers": list(email_subscribers),
-        "test_result": None,
-        "error": None
-    }
-    
-    if not sendgrid_api_key:
-        debug_info["error"] = "SENDGRID_API_KEY not configured on Render!"
-        return debug_info
-    
-    try:
-        sg = SendGridAPIClient(sendgrid_api_key)
-        sender_email = "quentin.mouraud@carquefouhockeyclub.com"  # Email expéditeur vérifié dans SendGrid
-        recipient = list(email_subscribers)[0] if email_subscribers else "test@example.com"
-        
-        debug_info["test_result"] = f"Creating SendGrid message..."
-        
-        html = f"""
-        <html><body style="font-family: Arial; background: #667eea; padding: 20px;">
-        <div style="background: white; padding: 20px; border-radius: 10px;">
-        <h2>✅ Test d'Email - Hockey API SendGrid</h2>
-        <p>Cet email de test prouve que le système fonctionne!</p>
-        <p><strong>Heure:</strong> {datetime.now()}</p>
-        <p><strong>De:</strong> {sender_email}</p>
-        <p><strong>À:</strong> {recipient}</p>
-        </div></body></html>
-        """
-        
-        message = Mail(
-            from_email=sender_email,
-            to_emails=recipient,
-            subject="✅ Test d'Email - Hockey API SendGrid",
-            html_content=html
-        )
-        
-        debug_info["test_result"] = "Sending via SendGrid..."
-        response = sg.send(message)
-        
-        debug_info["test_result"] = f"✅ Email envoyé! Status: {response.status_code}"
-        debug_info["response_code"] = response.status_code
-        
-    except Exception as e:
-        debug_info["error"] = f"Error: {str(e)}"
-    
-    return debug_info
-
-
-@app.get("/api/v1/test/send-notification-u14-filles", tags=["Debug"])
-async def test_send_notification_u14_filles():
-    """
-    Endpoint de test pour forcer l'envoi d'une notification avec un match réel des U14 Filles.
-    Récupère le premier match terminé et envoie l'email.
-    """
-    import requests
-    
-    try:
-        # Récupérer les matchs U14 Filles (ManifId: 4401)
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4401"
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        test_result = {
-            "timestamp": str(__import__('datetime').datetime.now()),
-            "status": "pending",
-            "message": None,
-            "email_sent": False,
-            "match_found": False,
-            "match_info": None
-        }
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            matches_raw = data["Response"].get("RencontresArray", {})
-            
-            # Chercher le premier match terminé
-            for match in matches_raw.values():
-                but1 = match.get("Scores", {}).get("RencButsEqp1")
-                but2 = match.get("Scores", {}).get("RencButsEqp2")
-                
-                if but1 is not None and but2 is not None:  # Match terminé
-                    equipe1 = match.get("Equipe1", {}).get("EquipeNom", "TBD")
-                    equipe2 = match.get("Equipe2", {}).get("EquipeNom", "TBD")
-                    
-                    test_match = {
-                        "equipe_domicile": equipe1,
-                        "equipe_exterieur": equipe2,
-                        "score_domicile": but1,
-                        "score_exterieur": but2,
-                        "date": match.get("RencDateDerog", ""),
-                        "statut": "FINISHED",
-                        "rencId": match.get("RencId", "")
-                    }
-                    
-                    test_result["match_found"] = True
-                    test_result["match_info"] = test_match
-                    
-                    # Envoyer l'email
-                    if email_subscribers:
-                        success = send_match_finished_email(
-                            email_subscribers,
-                            test_match,
-                            "U14 Filles - TEST"
-                        )
-                        
-                        test_result["email_sent"] = success
-                        test_result["status"] = "success" if success else "error"
-                        test_result["message"] = f"Email envoyé à {len(email_subscribers)} abonné(s)" if success else "Erreur lors de l'envoi"
-                    else:
-                        test_result["status"] = "error"
-                        test_result["message"] = "Aucun abonné configuré"
-                    
-                    break
-            
-            if not test_result["match_found"]:
-                test_result["status"] = "no_match"
-                test_result["message"] = "Aucun match terminé trouvé dans les U14 Filles"
-        else:
-            test_result["status"] = "error"
-            test_result["message"] = "Erreur lors de la récupération des matchs"
-        
-        return test_result
-        
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Exception: {str(e)}"
-        }
-
-
-@app.get("/api/v1/test/send-notification-interligues", tags=["Debug"])
-async def test_send_notification_interligues():
-    """
-    Endpoint de test pour forcer l'envoi d'une notification avec un match réel des Interligues.
-    Récupère le premier match terminé et envoie l'email.
-    """
-    import requests
-    
-    try:
-        # Récupérer les matchs U14 Garçons
-        url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-        params = {
-            "SaisonAnnee": "2026",
-            "ManifId": "4400"
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        test_result = {
-            "timestamp": str(__import__('datetime').datetime.now()),
-            "status": "pending",
-            "message": None,
-            "email_sent": False,
-            "match_found": False,
-            "match_info": None
-        }
-        
-        if data.get("ResponseCode") == "200" and "Response" in data:
-            matches_raw = data["Response"].get("RencontresArray", {})
-            
-            # Chercher le premier match terminé
-            for match in matches_raw.values():
-                but1 = match.get("Scores", {}).get("RencButsEqp1")
-                but2 = match.get("Scores", {}).get("RencButsEqp2")
-                
-                if but1 and but2:  # Match terminé
-                    equipe1 = match.get("Equipe1", {}).get("EquipeNom", "TBD")
-                    equipe2 = match.get("Equipe2", {}).get("EquipeNom", "TBD")
-                    
-                    test_match = {
-                        "equipe_domicile": equipe1,
-                        "equipe_exterieur": equipe2,
-                        "score_domicile": but1,
-                        "score_exterieur": but2,
-                        "date": match.get("RencDateDerog", ""),
-                        "statut": "FINISHED"
-                    }
-                    
-                    test_result["match_found"] = True
-                    test_result["match_info"] = test_match
-                    
-                    # Envoyer l'email
-                    if email_subscribers:
-                        success = send_match_finished_email(
-                            email_subscribers,
-                            test_match,
-                            "U14 Garçons - TEST"
-                        )
-                        
-                        test_result["email_sent"] = success
-                        test_result["status"] = "success" if success else "error"
-                        test_result["message"] = f"Email envoyé à {len(email_subscribers)} abonné(s)" if success else "Erreur lors de l'envoi"
-                    else:
-                        test_result["status"] = "error"
-                        test_result["message"] = "Aucun abonné configuré"
-                    
-                    break
-            
-            if not test_result["match_found"]:
-                test_result["status"] = "no_match"
-                test_result["message"] = "Aucun match terminé trouvé dans les Interligues U14 Garçons"
-        else:
-            test_result["status"] = "error"
-            test_result["message"] = "Erreur lors de la récupération des matchs"
-        
-        return test_result
-        
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Erreur: {str(e)}",
-            "email_sent": False
-        }
-
-
-# ============================================
-# ENDPOINTS - FEUILLE DE MATCH & OFFICIELS
-# ============================================
-
-# ============================================
-# PARSING FUNCTIONS - MATCH SHEET DATA
-# ============================================
-
-def parse_players_table_from_html(html_content):
-    """
-    Parse la table des joueurs depuis le HTML de la feuille de match.
-    Extrait le nom complet et le numéro de maillot de chaque joueur.
-    
-    Args:
-        html_content: Le contenu HTML de la feuille de match
-        
-    Returns:
-        Dict avec équipes et leurs joueurs
-    """
-    players_data = {
-        "team1": {"nom": "", "joueurs": {}},
-        "team2": {"nom": "", "joueurs": {}}
-    }
-    
-    try:
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Chercher les noms des équipes
-        team_names = re.findall(r'<p><strong>NOM : <\/strong>([^<]+)<\/p>', html_content)
-        if len(team_names) >= 2:
-            players_data["team1"]["nom"] = team_names[0].strip()
-            players_data["team2"]["nom"] = team_names[1].strip()
-        
-        # Trouver la table des joueurs (chercher toutes les tables et trouver celle avec classe "orbe")
-        all_tables = soup.find_all('table')
-        player_table = None
-        
-        for table in all_tables:
-            table_classes = table.get('class', [])
-            # Vérifier si la classe "orbe" est présente
-            if any('orbe' in str(cls) for cls in table_classes):
-                player_table = table
-                break
-        
-        if player_table:
-            tbody = player_table.find('tbody')
-            
-            if tbody:
-                rows = tbody.find_all('tr')
-                
-                # Chaque ligne a 8 colonnes (2 équipes x 4 colonnes)
-                # Team1: Col 0-3 (licence, maillot, nom, cartons)
-                # Team2: Col 4-7 (licence, maillot, nom, cartons)
-                
-                for row in rows:
-                    cells = row.find_all('td')
-                    
-                    if len(cells) >= 8:
-                        # Team1
-                        maillot_cell_t1 = cells[1].get_text(strip=True)
-                        nom_cell_t1 = cells[2].get_text(strip=True)
-                        
-                        # Team2
-                        maillot_cell_t2 = cells[5].get_text(strip=True)
-                        nom_cell_t2 = cells[6].get_text(strip=True)
-                        
-                        # Extraire les numéros de maillot
-                        maillot_match_t1 = re.match(r'(\d+)', maillot_cell_t1)
-                        if maillot_match_t1 and nom_cell_t1:
-                            maillot_t1 = int(maillot_match_t1.group(1))
-                            players_data["team1"]["joueurs"][maillot_t1] = nom_cell_t1
-                        
-                        maillot_match_t2 = re.match(r'(\d+)', maillot_cell_t2)
-                        if maillot_match_t2 and nom_cell_t2:
-                            maillot_t2 = int(maillot_match_t2.group(1))
-                            players_data["team2"]["joueurs"][maillot_t2] = nom_cell_t2
-    
-    except Exception as e:
-        print(f"Error parsing players table: {str(e)}")
-    
-    return players_data
-
-
-def parse_scorers_from_html(html_content):
-    """
-    Parse les buteurs depuis le HTML de la feuille de match.
-    Extrait les numéros de maillot, noms complets et compte les buts marqués.
-    Importante: Match les buteurs à chaque équipe par l'ordre dans le HTML sans filtrer.
-    
-    Args:
-        html_content: Le contenu HTML de la feuille de match
-        
-    Returns:
-        Dict avec les buteurs structurés par équipe avec noms
-    """
-    scorers = {
-        "team1": {
-            "nom_equipe": "Équipe 1",
-            "buteurs": []
-        },
-        "team2": {
-            "nom_equipe": "Équipe 2",
-            "buteurs": []
-        }
-    }
-    
-    try:
-        # Récupérer les données des joueurs
-        players_data = parse_players_table_from_html(html_content)
-        scorers["team1"]["nom_equipe"] = players_data["team1"]["nom"]
-        scorers["team2"]["nom_equipe"] = players_data["team2"]["nom"]
-        
-        # Chercher les sections "Buteurs :" SANS FILTRER (garder l'ordre original)
-        buteurs_pattern = r'<strong>Buteurs : <\/strong>([^<]*)'
-        buteurs_matches = re.findall(buteurs_pattern, html_content)
-        
-        # IMPORTANT: Ne pas filtrer! Garder l'ordre original du HTML
-        # Index 0 = Team1, Index 1 = Team2 (même si vides)
-        if len(buteurs_matches) >= 2:
-            # Première équipe (index 0)
-            buteurs_team1 = buteurs_matches[0].strip()
-            if buteurs_team1 and '&nbsp;' not in buteurs_team1:
-                numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
-                for num, count in numbers:
-                    num = int(num)
-                    nom_joueur = players_data["team1"]["joueurs"].get(num, f"Joueur N°{num}")
-                    scorers["team1"]["buteurs"].append({
-                        "numero_maillot": num,
-                        "nom": nom_joueur,
-                        "buts": int(count)
-                    })
-            
-            # Deuxième équipe (index 1)
-            buteurs_team2 = buteurs_matches[1].strip()
-            if buteurs_team2 and '&nbsp;' not in buteurs_team2:
-                numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team2)
-                for num, count in numbers:
-                    num = int(num)
-                    nom_joueur = players_data["team2"]["joueurs"].get(num, f"Joueur N°{num}")
-                    scorers["team2"]["buteurs"].append({
-                        "numero_maillot": num,
-                        "nom": nom_joueur,
-                        "buts": int(count)
-                    })
-        elif len(buteurs_matches) == 1:
-            buteurs_team1 = buteurs_matches[0].strip()
-            if buteurs_team1 and '&nbsp;' not in buteurs_team1:
-                numbers = re.findall(r'N°(\d+)\s*\(x(\d+)\)', buteurs_team1)
-                for num, count in numbers:
-                    num = int(num)
-                    nom_joueur = players_data["team1"]["joueurs"].get(num, f"Joueur N°{num}")
-                    scorers["team1"]["buteurs"].append({
-                        "numero_maillot": num,
-                        "nom": nom_joueur,
-                        "buts": int(count)
-                    })
-    
-    except Exception as e:
-        print(f"Error parsing scorers: {str(e)}")
-    
-    return scorers
-
-
-
-def parse_cards_from_html(html_content):
-    """
-    Parse les cartons depuis le HTML de la feuille de match.
-    Identifie les cartons verts, jaunes et rouges avec noms et équipes.
-    """
-    cards = {
-        "team1": {
-            "nom_equipe": "Équipe 1",
-            "jaune": [],
-            "rouge": [],
-            "vert": []
-        },
-        "team2": {
-            "nom_equipe": "Équipe 2",
-            "jaune": [],
-            "rouge": [],
-            "vert": []
-        }
-    }
-    
-    try:
-        players_data = parse_players_table_from_html(html_content)
-        cards["team1"]["nom_equipe"] = players_data["team1"]["nom"]
-        cards["team2"]["nom_equipe"] = players_data["team2"]["nom"]
-        
-        soup = BeautifulSoup(html_content, 'html.parser')
-        tables = soup.find_all('table', {'class': 'orbe'})
-        
-        if len(tables) >= 1:
-            player_table = tables[0]
-            tbody = player_table.find('tbody')
-            
-            if tbody:
-                rows = tbody.find_all('tr')
-                total_rows = len(rows)
-                
-                for i, row in enumerate(rows):
-                    cells = row.find_all('td')
-                    if len(cells) >= 4:
-                        maillot_cell = cells[1].get_text(strip=True)
-                        nom_cell = cells[2].get_text(strip=True)
-                        carton_cell = cells[3]
-                        
-                        nom = nom_cell.strip()
-                        carton_html = str(carton_cell)
-                        team = "team1" if i < total_rows // 2 else "team2"
-                        
-                        maillot_match = re.match(r'(\d+)', maillot_cell)
-                        maillot = int(maillot_match.group(1)) if maillot_match else None
-                        
-                        if 'CartonRouge' in carton_html or 'txt-orange' in carton_html:
-                            cards[team]["rouge"].append({"nom": nom, "numero_maillot": maillot})
-                        elif 'CartonJaune' in carton_html:
-                            cards[team]["jaune"].append({"nom": nom, "numero_maillot": maillot})
-                        
-                        if 'txt-vert' in carton_html or 'txt-vert' in str(cells[2]):
-                            if not any(c["nom"] == nom for c in cards[team]["vert"]):
-                                cards[team]["vert"].append({"nom": nom, "numero_maillot": maillot})
-        
-        vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
-        verts = re.findall(vert_pattern, html_content)
-        cards["team1"]["vert"] = []
-        cards["team2"]["vert"] = []
-        verts_per_team = len(verts) // 2
-        for i, vert_name in enumerate(verts):
-            team = "team1" if i < verts_per_team else "team2"
-            cards[team]["vert"].append({"nom": vert_name.strip()})
-        
-    except Exception as e:
-        print(f"Error parsing cards: {str(e)}")
-        vert_pattern = r'<strong class="txt-vert">([A-Z ]+)<\/strong>'
-        verts = re.findall(vert_pattern, html_content)
-        cards["team1"]["vert"] = []
-        cards["team2"]["vert"] = []
-        verts_per_team = len(verts) // 2
-        for i, vert_name in enumerate(verts):
-            team = "team1" if i < verts_per_team else "team2"
-            cards[team]["vert"].append({"nom": vert_name.strip()})
-    
-    return cards
-
-
-
-def get_match_info_from_api(renc_id):
-    """
-    Récupère les infos du match depuis l'API ListerRencontres.
-    Cherche dans tous les ManifId disponibles.
-    
-    Args:
-        renc_id: L'identifiant de la rencontre
-        
-    Returns:
-        Dict avec date, horaire, équipes et scores
-    """
-    match_info = {
-        "date": None,
-        "horaire": None,
-        "terrain": None,
-        "team1": {
-            "nom": None,
-            "buts": None
-        },
-        "team2": {
-            "nom": None,
-            "buts": None
-        }
-    }
-    
-    try:
-        import requests
-        
-        # List de ManifId à tester (U14 et autres)
-        manif_ids = ["4400", "4401", "4402", "4403", "4404", "4405"]  # U14 M, U14 F, etc.
-        
-        for manif_id in manif_ids:
-            try:
-                url = "https://championnats.ffhockey.org/rest2/Championnats/ListerRencontres"
-                params = {
-                    "SaisonAnnee": "2026",
-                    "ManifId": manif_id
-                }
-                
-                response = requests.get(url, params=params, timeout=10)
-                response.raise_for_status()
-                data = response.json()
-                
-                if data.get("ResponseCode") != "200":
-                    continue
-                
-                # Chercher le match avec le bon RencId
-                matches = data.get("Response", {}).get("RencontresArray", {})
-                if str(renc_id) in matches:
-                    match = matches[str(renc_id)]
-                    
-                    # Extraire les noms des équipes
-                    team1 = match.get("Equipe1", {})
-                    team2 = match.get("Equipe2", {})
-                    
-                    match_info["team1"]["nom"] = team1.get("EquipeNom", "").strip() or None
-                    match_info["team2"]["nom"] = team2.get("EquipeNom", "").strip() or None
-                    
-                    # Extraire les scores
-                    scores = match.get("Scores", {})
-                    score1 = scores.get("RencButsEqp1")
-                    score2 = scores.get("RencButsEqp2")
-                    
-                    if score1:
-                        try:
-                            match_info["team1"]["buts"] = int(score1)
-                        except:
-                            pass
-                    if score2:
-                        try:
-                            match_info["team2"]["buts"] = int(score2)
-                        except:
-                            pass
-                    
-                    # Extraire date et horaire
-                    date_str = match.get("RencDateDerog", "")  # Format: "2025-10-29 11:20:00"
-                    if date_str:
-                        try:
-                            from datetime import datetime
-                            dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                            match_info["date"] = dt.strftime("%d/%m/%Y")
-                            match_info["horaire"] = dt.strftime("%H:%M")
-                        except:
-                            pass
-                    
-                    # Si on a au moins trouvé le match, on retourne
-                    return match_info
-                    
-            except:
-                continue
-        
-        return match_info
-        
-    except Exception as e:
-        return match_info
-
-
-def extract_match_info_from_html(html_content):
-    """
-    Extrait les informations du match depuis la feuille de match HTML.
-    Récupère: date, horaire, terrain, équipes et scores.
-    
-    Args:
-        html_content: Le contenu HTML de la feuille de match
-        
-    Returns:
-        Dict avec les infos du match (None si HTML vide/inexistant)
-    """
-    match_info = {
-        "date": None,
-        "horaire": None,
-        "terrain": None,
-        "team1": {
-            "nom": None,
-            "buts": None
-        },
-        "team2": {
-            "nom": None,
-            "buts": None
-        }
-    }
-    
-    # Si le HTML est vide ou None, retourner les valeurs par défaut (None)
-    if not html_content or html_content is None or not html_content.strip():
-        return match_info
-    
-    try:
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Récupérer les paragraphes
-        paragraphs = soup.find_all('p')
-        
-        # Le deuxième paragraphe (index 1) contient date, horaire, terrain
-        if len(paragraphs) > 1:
-            info_para = paragraphs[1].get_text()
-            # Extraire la date
-            date_match = re.search(r'Date\s*:\s*(\d+/\d+/\d+)', info_para)
-            if date_match:
-                match_info["date"] = date_match.group(1)
-            
-            # Extraire l'horaire
-            time_match = re.search(r'Horaire\s*:\s*(\d+:\d+)', info_para)
-            if time_match:
-                match_info["horaire"] = time_match.group(1)
-            
-            # Extraire le terrain
-            terrain_match = re.search(r'Terrain\s*:\s*([^\n]+?)(?:\n|$)', info_para)
-            if terrain_match:
-                match_info["terrain"] = terrain_match.group(1).strip()
-        
-        # Récupérer les noms des équipes et les buts
-        team_names = re.findall(r'<strong>NOM\s*:\s*<\/strong>([^<]+)<', html_content)
-        
-        if len(team_names) >= 2:
-            match_info["team1"]["nom"] = team_names[0].strip()
-            match_info["team2"]["nom"] = team_names[1].strip()
-        
-        # Extraire les scores
-        # Pattern: "Buts en chiffres : X"
-        scores = re.findall(r'Buts en chiffres\s*:\s*(\d+)', html_content)
-        # Les scores sont simplement team1, team2 (pas de buts concédés dans cette extraction)
-        if len(scores) >= 2:
-            match_info["team1"]["buts"] = int(scores[0])
-            match_info["team2"]["buts"] = int(scores[1])
-    
-    except Exception as e:
-        print(f"Error extracting match info: {str(e)}")
-    
-    return match_info
-
 
 @app.get("/api/v1/match/{renc_id}/buteurs", tags=["Feuille de Match"], summary="Buteurs du match")
 async def get_match_scorers(renc_id: str):
@@ -4347,7 +3385,6 @@ def get_n2_salle_zone3_matchs():
                 print(f"⚠️  Erreur Firebase (non-bloquante): {str(firebase_error)}")
         
         # Vérifier et notifier les matchs terminés
-        check_and_notify_finished_matches(matches_data, "n2-salle-zone3", "N2 Hommes Salle Zone 3")
         
         return {
             "success": True,
@@ -4381,7 +3418,6 @@ async def endpoint_matchs_carquefou_sd():
         )
     
     # Vérifier et notifier les matchs terminés
-    check_and_notify_finished_matches(matches_data, "carquefou-sd", "Carquefou SD")
     
     return {
         "success": True,
@@ -4958,7 +3994,6 @@ async def get_matchs_interligues_u14_garcons_poule_a():
                     matches_formatted.append(formatted_match)
             
             # Vérifier les matchs terminés et envoyer des notifications
-            check_and_notify_finished_matches(matches_formatted, "u14-garcons-a", "U14 Garçons - Poule A")
             
             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
         else:
@@ -4992,7 +4027,6 @@ async def get_matchs_interligues_u14_garcons_poule_b():
                     matches_formatted.append(format_match_data(match))
             
             # Vérifier les matchs terminés et envoyer des notifications
-            check_and_notify_finished_matches(matches_formatted, "u14-garcons-b", "U14 Garçons - Poule B")
             
             return {"success": True, "data": matches_formatted, "count": len(matches_formatted)}
         else:
@@ -5209,7 +4243,6 @@ def get_n2_salle_zone3_matchs():
                 print(f"⚠️  Erreur Firebase (non-bloquante): {str(firebase_error)}")
         
         # Vérifier et notifier les matchs terminés
-        check_and_notify_finished_matches(matches_data, "n2-salle-zone3", "N2 Hommes Salle Zone 3")
         
         return {
             "success": True,
