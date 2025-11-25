@@ -579,29 +579,21 @@ def get_matchs_salle_elite_femmes() -> List[Dict]:
         if "CARQUEFOU" in str(match.get("equipe_exterieur", "")).upper():
             match["equipe_exterieur"] = "Carquefou HC"
     return matches
-def get_matches() -> List[Dict]:
-    """Récupère les matchs de l'élite hommes."""
-    return _get_matches_by_manif("4317")
 
 
-def get_matches_femmes() -> List[Dict]:
-    """Récupère les matchs de l'élite femmes."""
-    matches = _get_matches_by_manif("4318")
-    # Standardiser le nom Carquefou si présent dans les résultats
-    for match in matches:
-        if "CARQUEFOU" in str(match.get("equipe_domicile", "")).upper():
-            match["equipe_domicile"] = "Carquefou HC"
-        if "CARQUEFOU" in str(match.get("equipe_exterieur", "")).upper():
-            match["equipe_exterieur"] = "Carquefou HC"
-    return matches
-def get_ranking() -> List[Dict]:
-    """Récupère le classement de l'élite hommes."""
-    return _calculate_ranking("4317")
+# ============================================
+# Nationale 2 Hommes Salle - Zone 3 (NEW)
+# ManifId: 4430 (Saison 2026)
+# ============================================
+
+def get_ranking_n2_salle_zone3() -> List[Dict]:
+    """Récupère le classement de Nationale 2 Hommes Salle Zone 3."""
+    return _calculate_ranking("4430")
 
 
-def get_ranking_femmes() -> List[Dict]:
-    """Récupère le classement de l'élite femmes."""
-    return _calculate_ranking("4318")
+def get_matches_n2_salle_zone3() -> List[Dict]:
+    """Récupère les matchs de Nationale 2 Hommes Salle Zone 3."""
+    return _get_matches_by_manif("4430")
 
 
 def _get_matches_by_manif(manif_id: str) -> List[Dict]:
