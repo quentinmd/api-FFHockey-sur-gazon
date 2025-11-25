@@ -24,8 +24,6 @@ from bs4 import BeautifulSoup
 import firebase_admin
 from firebase_admin import credentials, db, auth
 from scraper import (
-    get_ranking, get_matches, 
-    get_ranking_femmes, get_matches_femmes,
     get_classement_carquefou_1sh, get_matchs_carquefou_1sh,
     get_classement_carquefou_2sh, get_matchs_carquefou_2sh,
     get_matchs_carquefou_sd,
@@ -702,38 +700,6 @@ def generate_renc_id(equipe_domicile, equipe_exterieur, date, seed=0):
 # WRAPPERS DE CACHE POUR APPELS SCRAPER
 # ============================================
 
-def get_ranking_cached():
-    """Wrapper avec cache pour get_ranking()"""
-    cache_key = "ranking_elite_hommes"
-    if cache_key not in cache_dynamic:
-        result = get_ranking()
-        cache_dynamic[cache_key] = result
-    return cache_dynamic[cache_key]
-
-def get_matches_cached():
-    """Wrapper avec cache pour get_matches()"""
-    cache_key = "matches_elite_hommes"
-    if cache_key not in cache_dynamic:
-        result = get_matches()
-        cache_dynamic[cache_key] = result
-    return cache_dynamic[cache_key]
-
-def get_ranking_femmes_cached():
-    """Wrapper avec cache pour get_ranking_femmes()"""
-    cache_key = "ranking_elite_femmes"
-    if cache_key not in cache_dynamic:
-        result = get_ranking_femmes()
-        cache_dynamic[cache_key] = result
-    return cache_dynamic[cache_key]
-
-def get_matches_femmes_cached():
-    """Wrapper avec cache pour get_matches_femmes()"""
-    cache_key = "matches_elite_femmes"
-    if cache_key not in cache_dynamic:
-        result = get_matches_femmes()
-        cache_dynamic[cache_key] = result
-    return cache_dynamic[cache_key]
-
 def get_classement_carquefou_1sh_cached():
     """Wrapper avec cache pour get_classement_carquefou_1sh()"""
     cache_key = "classement_carquefou_1sh"
@@ -809,32 +775,6 @@ def get_matches_n2_salle_zone3_cached():
         result = get_matches_n2_salle_zone3()
         cache_dynamic[cache_key] = result
     return cache_dynamic[cache_key]
-
-
-
-async def endpoint_classement():
-    """
-    Récupère le classement actuel de l'élite hommes.
-    
-    Returns:
-        Liste des équipes avec leurs statistiques de classement.
-    
-    Raises:
-        HTTPException: Si la source de données est indisponible (code 503).
-    """
-    ranking_data = get_ranking_cached()
-    
-    if not ranking_data:
-        raise HTTPException(
-            status_code=503,
-            detail="La source de données de la FFH est actuellement indisponible."
-        )
-    
-    return {
-        "success": True,
-        "data": ranking_data,
-        "count": len(ranking_data)
-    }
 
 
 # ========================
@@ -1026,86 +966,6 @@ async def serve_score_only():
         )
 
 
-@app.get("/api/v1/elite-hommes/matchs", tags=["Elite Hommes"])
-async def endpoint_matchs():
-    """
-    Récupère la liste des matchs de l'élite hommes.
-    Détecte aussi les matchs nouvellement terminés et envoie des emails si nécessaire.
-    
-    Returns:
-        Liste des matchs avec leurs résultats et statuts.
-    
-    Raises:
-        HTTPException: Si la source de données est indisponible (code 503).
-    """
-    matches_data = get_matches_cached()
-    
-    if not matches_data:
-        raise HTTPException(
-            status_code=503,
-            detail="La source de données de la FFH est actuellement indisponible."
-        )
-    
-    # Vérifier les matchs nouvellement terminés et envoyer notifications
-    check_and_notify_finished_matches(matches_data, "elite-hommes", "Elite Hommes")
-    
-    return {
-        "success": True,
-        "data": matches_data,
-        "count": len(matches_data)
-    }
-
-
-@app.get("/api/v1/elite-femmes/classement", tags=["Elite Femmes"])
-async def endpoint_classement_femmes():
-    """
-    Récupère le classement actuel de l'élite femmes.
-    
-    Returns:
-        Liste des équipes avec leurs statistiques de classement.
-    
-    Raises:
-        HTTPException: Si la source de données est indisponible (code 503).
-    """
-    ranking_data = get_ranking_femmes_cached()
-    
-    if not ranking_data:
-        raise HTTPException(
-            status_code=503,
-            detail="La source de données de la FFH est actuellement indisponible."
-        )
-    
-    return {
-        "success": True,
-        "data": ranking_data,
-        "count": len(ranking_data)
-    }
-
-
-@app.get("/api/v1/elite-femmes/matchs", tags=["Elite Femmes"])
-async def endpoint_matchs_femmes():
-    """
-    Récupère la liste des matchs de l'élite femmes.
-    
-    Returns:
-        Liste des matchs avec leurs résultats et statuts.
-    
-    Raises:
-        HTTPException: Si la source de données est indisponible (code 503).
-    """
-    matches_data = get_matches_femmes_cached()
-    
-    if not matches_data:
-        raise HTTPException(
-            status_code=503,
-            detail="La source de données de la FFH est actuellement indisponible."
-        )
-    
-    return {
-        "success": True,
-        "data": matches_data,
-        "count": len(matches_data)
-    }
 
 
 @app.get("/api/v1/salle/elite-femmes/classement", tags=["Salle Elite Femmes"], summary="Classement Elite Femmes Salle")
@@ -4140,11 +4000,7 @@ async def import_real_data(championship: str, admin_token: str = None):
         # Récupérer les vrais matchs depuis le cache FFH
         matches_list = []
         
-        if championship == "elite-hommes":
-            matches_list = get_matches_cached() or []
-        elif championship == "elite-femmes":
-            matches_list = get_matches_femmes_cached() or []
-        elif championship == "u14-garcons":
+        if championship == "u14-garcons":
             matches_list = get_matchs_interligues_u14_garcons() or []
         elif championship == "u14-filles":
             matches_list = get_matchs_interligues_u14_filles() or []
