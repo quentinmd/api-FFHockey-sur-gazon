@@ -318,13 +318,9 @@ def get_matchs_carquefou_1sh() -> List[Dict]:
         exterieur = match.get("equipe_exterieur", "").upper()
         # Chercher "CARQUEFOU HC 1" dans le nom de l'équipe (avec ou sans suffixe)
         if "CARQUEFOU HC 1" in domicile or "CARQUEFOU HC 1" in exterieur:
-            # Normaliser les noms d'équipes Carquefou seulement (supprimer U17, etc.)
-            if "CARQUEFOU" in domicile:
-                match["equipe_domicile"] = re.sub(r'\s+U\d+\s*$', '', match["equipe_domicile"].strip())
-                match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
-            if "CARQUEFOU" in exterieur:
-                match["equipe_exterieur"] = re.sub(r'\s+U\d+\s*$', '', match["equipe_exterieur"].strip())
-                match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
+            # Normaliser les noms (suppression des numéros de poule si présents)
+            match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
+            match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
             filtered_matches.append(match)
     return filtered_matches
 
@@ -345,13 +341,9 @@ def get_matchs_carquefou_2sh() -> List[Dict]:
         exterieur = match.get("equipe_exterieur", "").upper()
         # Chercher "CARQUEFOU HC 2" dans le nom de l'équipe (avec ou sans suffixe)
         if "CARQUEFOU HC 2" in domicile or "CARQUEFOU HC 2" in exterieur:
-            # Normaliser les noms d'équipes Carquefou seulement (supprimer U17, etc.)
-            if "CARQUEFOU" in domicile:
-                match["equipe_domicile"] = re.sub(r'\s+U\d+\s*$', '', match["equipe_domicile"].strip())
-                match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
-            if "CARQUEFOU" in exterieur:
-                match["equipe_exterieur"] = re.sub(r'\s+U\d+\s*$', '', match["equipe_exterieur"].strip())
-                match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
+            # Normaliser les noms (suppression des numéros de poule si présents)
+            match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
+            match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
             filtered_matches.append(match)
     return filtered_matches
 
@@ -450,13 +442,12 @@ def get_matchs_carquefou_sd() -> List[Dict]:
     for match in matches:
         match["equipe_domicile"] = _normalize_team_name(match["equipe_domicile"])
         match["equipe_exterieur"] = _normalize_team_name(match["equipe_exterieur"])
-        
-        # Correction spécifique : CARQUEFOU HC U14F -> Carquefou HC
-        if "CARQUEFOU HC U14F" in match["equipe_domicile"]:
-            match["equipe_domicile"] = match["equipe_domicile"].replace("CARQUEFOU HC U14F", "Carquefou HC")
-        if "CARQUEFOU HC U14F" in match["equipe_exterieur"]:
-            match["equipe_exterieur"] = match["equipe_exterieur"].replace("CARQUEFOU HC U14F", "Carquefou HC")
-            
+
+        # Afficher 'Carquefou HC' de façon cohérente pour ce championnat
+        if "CARQUEFOU" in str(match.get("equipe_domicile", "")).upper():
+            match["equipe_domicile"] = "Carquefou HC"
+        if "CARQUEFOU" in str(match.get("equipe_exterieur", "")).upper():
+            match["equipe_exterieur"] = "Carquefou HC"
     return matches
 
 
@@ -580,7 +571,14 @@ def get_classement_salle_elite_femmes() -> List[Dict]:
 
 def get_matchs_salle_elite_femmes() -> List[Dict]:
     """Récupère les matchs réels de l'Elite Femmes en Salle depuis la FFH."""
-    return _get_matches_by_manif("4403")
+    matches = _get_matches_by_manif("4403")
+    # Standardiser le nom Carquefou si présent dans les résultats
+    for match in matches:
+        if "CARQUEFOU" in str(match.get("equipe_domicile", "")).upper():
+            match["equipe_domicile"] = "Carquefou HC"
+        if "CARQUEFOU" in str(match.get("equipe_exterieur", "")).upper():
+            match["equipe_exterieur"] = "Carquefou HC"
+    return matches
 def get_matches() -> List[Dict]:
     """Récupère les matchs de l'élite hommes."""
     return _get_matches_by_manif("4317")
@@ -588,7 +586,14 @@ def get_matches() -> List[Dict]:
 
 def get_matches_femmes() -> List[Dict]:
     """Récupère les matchs de l'élite femmes."""
-    return _get_matches_by_manif("4318")
+    matches = _get_matches_by_manif("4318")
+    # Standardiser le nom Carquefou si présent dans les résultats
+    for match in matches:
+        if "CARQUEFOU" in str(match.get("equipe_domicile", "")).upper():
+            match["equipe_domicile"] = "Carquefou HC"
+        if "CARQUEFOU" in str(match.get("equipe_exterieur", "")).upper():
+            match["equipe_exterieur"] = "Carquefou HC"
+    return matches
 def get_ranking() -> List[Dict]:
     """Récupère le classement de l'élite hommes."""
     return _calculate_ranking("4317")
@@ -641,12 +646,6 @@ def _get_matches_by_manif(manif_id: str) -> List[Dict]:
             
             equipe1_name = equipe1_data.get("EquipeNom", "")
             equipe2_name = equipe2_data.get("EquipeNom", "")
-            
-            # Correction spécifique : CARQUEFOU HC U14F -> Carquefou HC
-            if "CARQUEFOU HC U14F" in equipe1_name:
-                equipe1_name = equipe1_name.replace("CARQUEFOU HC U14F", "Carquefou HC")
-            if "CARQUEFOU HC U14F" in equipe2_name:
-                equipe2_name = equipe2_name.replace("CARQUEFOU HC U14F", "Carquefou HC")
             
             scores = match_data.get("Scores", {})
             but1 = int(scores.get("RencButsEqp1") or 0) if scores.get("RencButsEqp1") else None
